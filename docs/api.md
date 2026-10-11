@@ -1,11 +1,11 @@
 # API 接口文档
 
-更新时间：2026-10-10。当前交付批次：02（十进制评分核心）。
+更新时间：2026-10-11。当前交付批次：03（MySQL 持久化基础）。
 
 ## 1. 实现状态与文档分工
 
-**当前仅实现存活检查业务端点，尚未实现登录、活动管理、评分及实时接口。**
-提交 02 已提供后端评分纯函数，尚未接入 HTTP；调用方式与边界见 [Review 02](review-02.md)。本批未新增接口、权限或 HTTP 错误/重试契约。
+**当前仅实现存活和数据库就绪检查端点，尚未实现登录、活动管理、评分及实时接口。**
+提交 02 已提供后端评分纯函数，尚未接入 HTTP；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
 | 文档 | 用途 |
@@ -52,11 +52,29 @@ curl -i http://localhost:8000/api/v1/health/live
 前端开发服务器启动后，也可以请求 http://localhost:5173/api/v1/health/live，验证 Vite 代理至后端的连通性。
 
 成功仅表示进程存活，**不代表数据库就绪、允许评分或某份评分已经保存**。
-数据库就绪检查将在提交 03 实现，其路径和响应结构届时补齐。
 当前尚无统一业务错误格式或 request_id 中间件；不要将下文规划中的错误约定当作现有行为。
 
 实现：[main.py](../backend/src/score_api/main.py)。
 验证：[test_health.py](../backend/tests/test_health.py)。
+
+### GET /api/v1/health/ready
+
+用途：检查 MySQL 可连接且项目专用表 `score_alembic_version` 的当前版本与应用迁移 head 一致。无认证、无参数、只读，不自动执行迁移；共享库中其他项目的 `alembic_version` 不参与判断。
+
+| 状态 | 响应体 | 条件 |
+| --- | --- | --- |
+| 200 | `{"status":"ok","database":"ready"}` | 数据库连通且迁移版本一致 |
+| 503 | `{"status":"unavailable","database":"unavailable"}` | 未配置数据库、连接失败、池等待超时或迁移版本缺失/不符 |
+
+始终返回 `Cache-Control: no-store`；503 附带 `Retry-After: 3`，调用方按至少 3 秒间隔退避探测。此接口不执行业务写入，无幂等键要求；不返回主机、账号、SQL 或数据库异常详情。
+同步数据库操作在线程池执行；失败不影响存活检查。等待受池、连接和读写超时约束，并非统一的 3 秒总请求截止。
+Redis 本批未接入应用，不参与就绪判断；Redis 通知与降级状态随后续批次实现。200 不保证评分功能已经实现或某笔业务已经提交。
+
+```bash
+curl -i http://localhost:8000/api/v1/health/ready
+```
+
+验证：[test_db.py](../backend/tests/test_db.py)、[test_mysql.py](../backend/tests/test_mysql.py)。统一业务错误及 request_id 仍在提交 04 实现。
 
 ## 3. 通用业务约定（规划中）
 

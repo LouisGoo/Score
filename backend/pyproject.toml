@@ -3,7 +3,10 @@ name = "score-api"
 version = "0.1.0"
 description = "Online scoring system API"
 requires-python = ">=3.10"
-dependencies = ["fastapi", "uvicorn", "pydantic-settings"]
+dependencies = [
+    "fastapi", "uvicorn", "pydantic-settings",
+    "SQLAlchemy>=2.0,<2.1", "alembic>=1.13,<2", "PyMySQL[rsa]>=1.1,<2",
+]
 
 [project.optional-dependencies]
 dev = ["pytest", "httpx", "ruff"]
@@ -15,8 +18,12 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+score_api = ["migrations/script.py.mako"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["mysql: 需要显式配置独立 MySQL 测试库的集成测试"]
 
 [tool.ruff]
 target-version = "py310"

@@ -1,22 +1,65 @@
+from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
 
 from score_api.config import Settings
+from score_api.db import Database
 
 
 class Liveness(BaseModel):
     status: Literal["ok"] = "ok"
 
 
+class Readiness(BaseModel):
+    status: Literal["ok", "unavailable"]
+    database: Literal["ready", "unavailable"]
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
-    app = FastAPI(title=settings.app_name, version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        database = Database(settings) if settings.database_url is not None else None
+        app.state.database = database
+        try:
+            yield
+        finally:
+            if database is not None:
+                database.dispose()
+            app.state.database = None
+
+    app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+    app.state.database = None
 
     @app.get("/api/v1/health/live", response_model=Liveness, tags=["health"])
     def liveness() -> Liveness:
-        """Process liveness only; this does not indicate database readiness."""
+        """仅检查进程存活，不代表数据库就绪。"""
         return Liveness()
+
+    @app.get(
+        "/api/v1/health/ready",
+        response_model=Readiness,
+        responses={503: {"model": Readiness, "description": "数据库不可用或迁移未就绪"}},
+        tags=["health"],
+    )
+    def readiness(response: Response) -> Readiness:
+        """只读检查数据库与迁移版本；不返回内部连接信息。"""
+        database = app.state.database
+        try:
+            ready = database is not None and database.is_ready()
+        except SQLAlchemyError:
+            ready = False
+        response.headers["Cache-Control"] = "no-store"
+        if not ready:
+            response.status_code = 503
+            response.headers["Retry-After"] = "3"
+        return Readiness(
+            status="ok" if ready else "unavailable",
+            database="ready" if ready else "unavailable",
+        )
 
     return app

@@ -10,6 +10,23 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0.40
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-only
+          MYSQL_DATABASE: score_test
+          MYSQL_USER: score
+          MYSQL_PASSWORD: ci-score-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root-only"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=30
+    env:
+      SCORE_TEST_DATABASE_URL: mysql+pymysql://score:ci-score-only@127.0.0.1:3306/score_test
     defaults:
       run:
         working-directory: backend
