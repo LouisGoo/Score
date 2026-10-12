@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import BINARY, JSON, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from score_api.db import Base, UTCDateTime
@@ -50,12 +50,35 @@ class Entry(Base):
 
 class EventJudge(Base):
     __tablename__ = "score_event_judges"
-    __table_args__ = (UniqueConstraint("event_id", "number"), Base.__table_args__)
+    __table_args__ = (
+        UniqueConstraint("event_id", "number"),
+        UniqueConstraint("event_id", "credential_lookup", name="uq_score_judges_event_credential"),
+        CheckConstraint(
+            "(credential_hash IS NULL AND credential_lookup IS NULL "
+            "AND credential_source IS NULL AND credential_updated_at IS NULL "
+            "AND credential_version = 0) OR "
+            "(credential_hash IS NOT NULL AND credential_lookup IS NOT NULL "
+            "AND credential_source IN ('generated', 'manual') "
+            "AND credential_source IS NOT NULL AND credential_updated_at IS NOT NULL "
+            "AND credential_version > 0)",
+            name="credential_complete",
+        ),
+        Base.__table_args__,
+    )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     event_id: Mapped[str] = mapped_column(ForeignKey("score_events.id"))
     number: Mapped[str] = mapped_column(String(32, collation="utf8mb4_bin"))
     name: Mapped[str] = mapped_column(String(80))
+    credential_hash: Mapped[str | None] = mapped_column(String(256))
+    credential_lookup: Mapped[bytes | None] = mapped_column(BINARY(32))
+    credential_source: Mapped[str | None] = mapped_column(String(16))
+    credential_version: Mapped[int] = mapped_column(default=0, server_default="0")
+    credential_updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+    @property
+    def credential_is_set(self) -> bool:
+        return self.credential_hash is not None
 
 
 class EventAudit(Base):

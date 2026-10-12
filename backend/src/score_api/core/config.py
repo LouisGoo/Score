@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     login_window_seconds: int = Field(default=300, ge=1, le=3600)
     login_ip_limit: int = Field(default=30, ge=1, le=1000)
     login_account_limit: int = Field(default=10, ge=1, le=100)
+    credential_hmac_key: SecretStr | None = None
+
+    @field_validator("credential_hmac_key")
+    @classmethod
+    def validate_credential_key(cls, value):
+        if value is not None:
+            raw = value.get_secret_value()
+            if len(raw) != 64 or any(c not in "0123456789abcdefABCDEF" for c in raw):
+                raise ValueError("凭证 HMAC 密钥必须为随机生成的 64 位十六进制字符串")
+        return value
 
     @field_validator("allowed_origins")
     @classmethod

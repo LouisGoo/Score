@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from score_api.auth.router import router as auth_router
 from score_api.core.config import Settings
 from score_api.core.errors import install_error_handlers
+from score_api.credentials.router import router as credentials_router
 from score_api.db import Database, utc_now
 from score_api.events.router import router as events_router
 
@@ -42,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     app.include_router(auth_router)
     app.include_router(events_router)
+    app.include_router(credentials_router)
 
     @app.get("/api/v1/health/live", response_model=Liveness, tags=["health"])
     def liveness() -> Liveness:

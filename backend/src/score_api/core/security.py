@@ -40,8 +40,13 @@ def password_digest(password: str, salt: bytes) -> bytes:
 def hash_password(password: str) -> str:
     if not 12 <= len(password) <= 128:
         raise ValueError("密码长度必须为 12～128 个字符")
+    return hash_secret(password)
+
+
+def hash_secret(value: str) -> str:
+    """供已完成各自格式验证的密码和身份码共用。"""
     salt = secrets.token_bytes(16)
-    digest = password_digest(password, salt)
+    digest = password_digest(value, salt)
     return f"scrypt$131072$8$1${salt.hex()}${digest.hex()}"
 
 

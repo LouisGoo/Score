@@ -159,7 +159,7 @@ const response = await fetch('/api/v1/auth/login', {
 }
 ```
 
-新增对象：`POST /events/{event_id}/entries`，请求 `{"number":"001","name":"项目甲","description":"介绍","sort_order":0}`。新增评委：`POST /events/{event_id}/judges`，请求 `{"number":"001","name":"评委甲"}`。评委响应只含内部 ID、event_id、编号和姓名；凭证功能在 06 实现。
+新增对象：`POST /events/{event_id}/entries`，请求 `{"number":"001","name":"项目甲","description":"介绍","sort_order":0}`。新增评委：`POST /events/{event_id}/judges`，请求 `{"number":"001","name":"评委甲"}`。评委响应包含内部 ID、event_id、编号、姓名及凭证状态元数据；不含凭证秘密。
 
 - 名称去首尾空白后为 1～80 字；编号为 1～32 字的字符串，保留前导零、区分大小写，不接受 JSON 数字。对象与评委分别在活动内唯一，两类可使用同一编号，不同活动可复用编号。
 - 简介最多 2000 字，组织名称最多 120 字；计划时间需包含时区，读回 UTC。duration_seconds 为 1～86400 或 null（不限时）；allow_revisions 默认 true。大屏配置 screen_title 默认为空（最多 80 字），screen_theme 为 light/dark，show_public_qr 默认 true，leaderboard_limit 为 1～10000，默认 10。
@@ -171,6 +171,16 @@ const response = await fetch('/api/v1/auth/login', {
 - 草稿接口不接受幂等键或 expected_version。行锁防止状态竞争，但不检测两个编辑者覆盖同一字段，最后提交的对应字段生效。POST 超时后先查询列表核验，禁止盲目自动重建；PATCH/DELETE 超时后先 GET 核验，删除后 404 表示已不存在。409 需刷新或修改编号；503 按 Retry-After 等待并核验是否已保存。
 
 字段以 OpenAPI 中 EventCreate/EventPatch/EventInfo、EntryCreate/EntryPatch/EntryInfo、JudgeCreate/JudgePatch/JudgeInfo 为准。入口：[events/router.py](../backend/src/score_api/events/router.py)，验证与迁移说明见 [Review 05](review-05.md)。
+
+### 评委身份码（提交 06，已实现）
+
+`PUT /api/v1/events/{event_id}/judges/{judge_id}/credential`：活动拥有者的草稿操作，需要主办方 Cookie、Origin、CSRF。请求 `{}` 或 `{"code":null}` 自动生成 12 位易读随机字母数字；`{"code":" abcd1234 "}` 手动设置。手动码去首尾空白后为 8～32 位 ASCII 字母数字，至少各含一种，统一大写；编号不作为身份码。成功 200 `CredentialResult` 仅在本次返回明文及元数据，禁止缓存。普通 JudgeInfo 仅新增 credential_is_set、credential_source、credential_version、credential_updated_at；无明文、哈希或 HMAC 查询接口。
+
+服务端必须配置 `SCORE_CREDENTIAL_HMAC_KEY` 为随机 32 字节的 64 位十六进制文本，各进程使用同一密钥，独立于数据库保存和备份，不得随重启更换。可用 `python -c 'import secrets; print(secrets.token_hex(32))'` 在本机生成并写入受保护环境配置。未配置返回 503 `CREDENTIAL_KEY_UNAVAILABLE`，不使用默认密钥或降级为无密钥摘要。密钥丢失会影响已有码的查找；轮换流程留待运维批次，不可直接改密钥后继续兑换。
+
+验证使用带随机盐的 scrypt，活动 ID 与规范化码的 HMAC-SHA-256 以二进制存储，并有 `(event_id, credential_lookup)` 唯一约束。慢哈希计算释放数据库连接；写入先锁活动，锁内重查草稿及重复码，与审计同事务。不同活动允许使用相同码。审计只记录凭证版本、来源、更新时间，日志与校验错误不回显码或摘要。
+
+错误：格式不合规 422 `VALIDATION_ERROR`，重复码 409 `CREDENTIAL_CONFLICT`，非草稿 409 `EVENT_NOT_DRAFT`，无权或路径绑定错误 404；生成碰撞最多重试 5 次，耗尽 503 `CREDENTIAL_GENERATION_BUSY`（Retry-After: 1），高成本哈希繁忙 503 `AUTH_BUSY`。本操作无幂等 key，超时先查询元数据确认版本；若明文丢失只能重新设置，不可自动重复生成。发布后重置由 08 提供。
 
 ## 3. 通用业务约定（认证与草稿已实现，其余规划中）
 
@@ -202,7 +212,6 @@ const response = await fetch('/api/v1/auth/login', {
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 06 | PUT /events/{id}/judges/{judge_id}/credential | 草稿身份码设置；活动拥有者，仅本次返回明文 |
 | 07 | POST /events/{id}/publish、POST /events/{id}/copy | 发布/复制；活动拥有者 |
 | 08 | GET /join/{code} | 公开活动预览；公共 |
 | 08 | POST /judge-sessions/exchange | 身份码兑换评委会话 |

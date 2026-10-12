@@ -145,3 +145,7 @@ class JudgeInfo(JudgeCreate):
     model_config = ConfigDict(from_attributes=True)
     id: str
     event_id: str
+    credential_is_set: bool
+    credential_source: Literal["generated", "manual"] | None
+    credential_version: int
+    credential_updated_at: datetime | None
