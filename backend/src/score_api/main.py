@@ -5,8 +5,10 @@ from fastapi import FastAPI, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 
+from score_api.auth import router as auth_router
 from score_api.config import Settings
-from score_api.db import Database
+from score_api.db import Database, utc_now
+from score_api.errors import install_error_handlers
 
 
 class Liveness(BaseModel):
@@ -34,6 +36,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.state.database = None
+    app.state.settings = settings
+    app.state.clock = utc_now
+    install_error_handlers(app)
+    app.include_router(auth_router)
 
     @app.get("/api/v1/health/live", response_model=Liveness, tags=["health"])
     def liveness() -> Liveness:

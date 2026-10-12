@@ -1,6 +1,5 @@
 """真实 MySQL 验证；迁移测试只允许显式指定名称以 _test 结尾的独立库。"""
 
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
@@ -14,7 +13,6 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import Column, Integer, MetaData, String, Table, inspect, select, text
-from sqlalchemy.engine import make_url
 from sqlalchemy.exc import TimeoutError
 
 from score_api.config import Settings
@@ -22,24 +20,6 @@ from score_api.db import VERSION_TABLE, Database, UTCDateTime
 from score_api.main import create_app
 
 pytestmark = pytest.mark.mysql
-
-
-@pytest.fixture
-def mysql_settings():
-    url = os.environ.get("SCORE_TEST_DATABASE_URL")
-    if not url:
-        pytest.skip("未设置 SCORE_TEST_DATABASE_URL，不以 SQLite 替代")
-    if not (make_url(url).database or "").endswith("_test"):
-        pytest.fail("集成测试必须使用名称以 _test 结尾的独立数据库")
-    return Settings(_env_file=None, DATABASE_URL=url, db_pool_timeout=0.2)
-
-
-@pytest.fixture
-def database(mysql_settings):
-    db = Database(mysql_settings, role="worker")
-    yield db
-    assert db.engine.pool.checkedout() == 0
-    db.dispose()
 
 
 @pytest.fixture

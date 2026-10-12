@@ -2,6 +2,7 @@
 
 from alembic import context
 
+from score_api import models  # noqa: F401 -- 注册本批模型供 Alembic 比较
 from score_api.config import Settings
 from score_api.db import VERSION_TABLE, Base, create_db_engine
 
