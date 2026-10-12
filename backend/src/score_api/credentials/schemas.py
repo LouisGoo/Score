@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, StringConstraints, field_validator
 
 from score_api.credentials.security import normalize_credential
 from score_api.events.schemas import InputModel
@@ -26,3 +26,7 @@ class CredentialResult(InputModel):
     credential_source: Literal["generated", "manual"]
     credential_version: int
     credential_updated_at: datetime
+
+
+class ResetCredentialInput(CredentialInput):
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]

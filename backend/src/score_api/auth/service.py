@@ -66,6 +66,19 @@ def consume_login_limits(
     source: str,
     login: str,
 ) -> None:
+    consume_limits(
+        database,
+        now,
+        settings.login_window_seconds,
+        (
+            ("ip", source, settings.login_ip_limit),
+            ("account", login, settings.login_account_limit),
+        ),
+    )
+
+
+def consume_limits(database, now, window_seconds, dimensions) -> None:
+    """按调用方固定顺序锁定多个维度；错误尝试仍提交计数。"""
     retry_after = None
     with database.transaction() as session:
         # 清理过期的限流计数，保持每次工作量有界；不会删除会话或审计。
@@ -74,17 +87,14 @@ def consume_login_limits(
             {"now": now.replace(tzinfo=None)},
         )
         # 固定锁顺序：来源 -> 账号；先拒绝来源超限，避免任意账号撑大计数表。
-        for dimension, value, limit in (
-            ("ip", source, settings.login_ip_limit),
-            ("account", login, settings.login_account_limit),
-        ):
+        for dimension, value, limit in dimensions:
             key = token_hash(dimension + ":" + value)
             session.execute(
                 insert(LoginBucket)
                 .values(
                     key=key,
                     attempts=0,
-                    expires_at=now + timedelta(seconds=settings.login_window_seconds),
+                    expires_at=now + timedelta(seconds=window_seconds),
                 )
                 .on_duplicate_key_update(key=key)
             )
@@ -93,7 +103,7 @@ def consume_login_limits(
             )
             if bucket.expires_at <= now:
                 bucket.attempts = 0
-                bucket.expires_at = now + timedelta(seconds=settings.login_window_seconds)
+                bucket.expires_at = now + timedelta(seconds=window_seconds)
             if bucket.attempts >= limit:
                 retry_after = max(1, math.ceil((bucket.expires_at - now).total_seconds()))
                 break

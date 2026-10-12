@@ -2,13 +2,16 @@
 
 为固定评委的比赛、答辩和项目评审提供主持人控制台、手机评分与只读大屏。
 
-目前交付 **07：不可变活动发布与复制**。支持草稿、身份码、发布校验、补齐凭证、规则/名单冻结、活动入口与任务初始化，以及不带凭证和业务记录的活动复制。评委会话、评分流程与管理前端在后续批次。
+目前交付 **08：评委会话兑换与撤销**。支持草稿、身份码、原子发布/复制、规则和名单冻结、任务初始化、公开活动预览、评委身份确认和单有效会话，以及有原因的凭证重置与撤销。任务控制、评分写入、成绩与管理前端在后续批次。
 
 - [需求与架构设计](./docs/在线打分系统-产品需求与架构设计.md)
 - [接口文档与业务约定](./docs/api.md)
 - [逐次 commit 计划](./docs/commit-plan.md)
 - [认证功能 review](./docs/review-04.md)
 - [活动草稿 review](./docs/review-05.md)
+- [身份码 review](./docs/review-06.md)
+- [发布与复制 review](./docs/review-07.md)
+- [评委会话 review](./docs/review-08.md)
 - [当前目录重构 review](./docs/review-auth-refactor.md)
 
 ## 环境与目录
@@ -36,6 +39,9 @@ backend/src/score_api/
 │   ├── schemas.py
 │   ├── service.py
 │   └── models.py
+├── credentials/         自动/手动身份码、规范化、HMAC、重置与撤销
+├── judge_sessions/      活动预览、身份确认、会话、限流和认证审计
+├── rounds/              已发布任务及应交名单模型（控制接口待 09）
 ├── db.py                连接池、事务、Base、UTC 类型
 ├── scoring.py           独立评分纯函数
 └── migrations/          Alembic 环境及已有迁移历史
@@ -44,7 +50,7 @@ frontend/src/            React 页面
 docs/                    开发与 review 文档
 ```
 
-后续按业务新增 `rounds/` 等目录，沿用 router/schemas/service/models 的职责划分；只在实际需要时创建文件。共用设施放 `core/`，各业务模型在 `migrations/env.py` 显式导入，确保 Alembic 能发现。路由负责 HTTP 输入输出，服务负责业务事务，不传入 Request/Response；暂不额外引入 repository 层。
+后续按业务新增其他模块目录，沿用 router/schemas/service/models 的职责划分；只在实际需要时创建文件。共用设施放 `core/`，各业务模型在 `migrations/env.py` 显式导入，确保 Alembic 能发现。路由负责 HTTP 输入输出，服务负责业务事务，不传入 Request/Response；暂不额外引入 repository 层。
 
 ## 本地启动
 
@@ -166,3 +172,7 @@ CI 使用 MySQL 8.0.40 服务执行完整后端检查。构建已含 TypeScript 
 06 新增迁移 `0006_judge_credentials`，扩展评委凭证字段、完整性和唯一约束；运行凭证接口前需配置独立稳定的 `SCORE_CREDENTIAL_HMAC_KEY`，详见 [API 文档](docs/api.md) 与 [Review 06](docs/review-06.md)。本次只升级本地独立测试库。
 
 07 新增迁移 `0007_event_publication`，扩展活动发布字段并建立发布快照、评分任务、应交评委表与复合外键。发布和复制均与审计同事务，见 [Review 07](docs/review-07.md)。仅对本地独立测试库执行迁移。
+
+08 新增迁移 `0008_judge_sessions`，建立独立评委会话、一次性确认令牌和评委认证审计，生成列唯一约束保证每位评委至多一条未撤销会话。兑换流程为 `/judge-sessions/csrf` → `/verify` → 用户确认姓名编号 → `/exchange`；`/me` 恢复身份，`/logout` 撤销。重置需填写原因并同时撤销旧会话和旧确认令牌。详见 [API 文档](docs/api.md) 与 [Review 08](docs/review-08.md)。
+
+06～08 均只在独立本地测试库迁移验收，未连接/升级远程业务库，未修改 `.env`。部署前显式迁移选定目标库到 head，并先配置稳定独立的 `SCORE_CREDENTIAL_HMAC_KEY`；各 API 进程共享同一密钥，密钥独立备份。现有前端仍为工程骨架，管理/评委页面在 14～16 批次交付。

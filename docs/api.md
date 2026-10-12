@@ -1,10 +1,10 @@
 # API 接口文档
 
-更新时间：2026-10-12。当前交付批次：05（主办方活动草稿管理）。
+更新时间：2026-10-12。当前交付批次：08（评委会话兑换与撤销）。
 
 ## 1. 实现状态与文档分工
 
-**当前已实现存活、数据库就绪、主办方认证及活动/名单草稿 CRUD；发布、身份码、评分及实时接口尚未实现。**
+**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委身份确认/会话兑换及凭证重置撤销。评分任务控制、评分写入、成绩及实时接口尚未实现。**
 提交 02 已提供后端评分纯函数，尚未接入 HTTP；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
@@ -109,10 +109,10 @@ const response = await fetch('/api/v1/auth/login', {
 - 所有非 GET/HEAD/OPTIONS 请求校验单一、精确匹配的 `Origin`；无 Origin 的 curl/脚本也需显式提供。不依据 Host、Referer 或请求头自动扩展可信列表，未开放跨域 CORS。
 - 登录前 CSRF 使用随机双提交令牌；登录后 CSRF 从随机会话令牌经独立用途摘要派生，与会话绑定。都通过 JSON 提供并在 `X-CSRF-Token` 回传，不从 URL 接收。退出后不能复用原会话，重新登录会轮换会话和 CSRF。
 - 默认 Cookie 名为 `__Host-score_admin_session` / `__Host-score_admin_login_csrf`，`Secure; HttpOnly; SameSite=Strict; Path=/`，不设置 Domain。仅本机 HTTP 显式配置 `SCORE_COOKIE_SECURE=false` 时名称去除 `__Host-`。登录成功清除登录前 Cookie；`/auth/me` 用于刷新页面后的会话恢复。
-- 会话绝对有效期默认 28800 秒，读取不续期；服务端检查 `expires_at > now`、撤销状态和账号启用状态。数据库仅存 256 位随机令牌的 SHA-256 摘要。主办方可使用多个浏览器；同一浏览器成功重登会撤销其携带的旧会话。评委单会话约束留待 08。
+- 会话绝对有效期默认 28800 秒，读取不续期；服务端检查 `expires_at > now`、撤销状态和账号启用状态。数据库仅存 256 位随机令牌的 SHA-256 摘要。主办方可使用多个浏览器；同一浏览器成功重登会撤销其携带的旧会话。评委单会话约束由 08 的独立会话表实现。
 - 登录尝试按来源 IP 默认 30 次/300 秒、规范化账号 10 次/300 秒限制，成功和失败都消耗配额；来源超限时不建立新账号计数。使用 MySQL 锁和持久化计数，跨进程/重启共享；拒绝不会延长窗口，到期重置。每次登录最多清理 100 条过期计数，未自动删除审计或会话。
 - 来源采用 ASGI 客户端地址，不在应用中读取 X-Forwarded-For。Uvicorn/反向代理必须限制可信转发来源。MySQL 故障时认证失败关闭；限流不依赖 Redis。密码 scrypt 参数为 N=131072、r=8、p=1，随机 16 字节盐；计算时释放数据库连接，单 API 进程最多并行两次。
-- 建号、登录成功/失败、退出写入认证审计，只含动作、内部账号 ID（不存在时为空）、时间与 request_id，不记录密码、Cookie、CSRF、明文 IP 或尝试账号。会话写入/撤销与审计同事务。活动草稿审计在 05 实现，凭证审计在 06 扩展。
+- 建号、登录成功/失败、退出写入认证审计，只含动作、内部账号 ID（不存在时为空）、时间与 request_id，不记录密码、Cookie、CSRF、明文 IP 或尝试账号。会话写入/撤销与审计同事务。活动草稿审计在 05 实现，凭证审计在 06/08 扩展。
 
 认证错误码和重试约定见第 6 节；精确字段以 OpenAPI 中 `LoginInput`、`SessionInfo`、`CSRFInfo`、`ErrorResponse` 为准。
 
@@ -166,7 +166,7 @@ const response = await fetch('/api/v1/auth/login', {
 - 草稿允许空名单、未设置评分规则。提供规则时须满足单项/多维模式、唯一维度 ID、满分/步长及权重合计 1，复用提交 02 的纯函数校验。维度数最多 20，数值必须是最多 9 位整数、6 位小数的非负十进制字符串，不接受浮点、指数、NaN/Infinity。最低有效份数 K 为 1～10000 或 null（发布时按 N 推导），去极值显式 K 不得低于 5；实际名单人数、K≤N 及发布完整性校验在 07。
 - PATCH 至少传一个字段；planned_at、scoring_rule、duration_seconds 可用 null 清空，其余字段拒绝 null，简介等文本可用空字符串清空。scoring_rule 为整块替换；禁止传入 owner_id、status、id、event_id、凭证等未声明字段。
 - 他人活动与不存在活动统一返回 404 `NOT_FOUND`。同一管理员把另一活动的子资源 ID 放入当前路径也返回 404。所有非草稿修改/删除均返回 409 `EVENT_NOT_DRAFT`；发布后的展示字段编辑留待后续批次。
-- 同一活动写入先取得活动行锁，再检查状态和修改。编号由 MySQL 复合唯一约束保证，重复创建/改号返回 409 `NUMBER_CONFLICT`，失败不留部分修改或审计。删除活动显式删除草稿名单，不配置数据库级联；当前尚无任务/评分表，后续须保持历史外键 RESTRICT 与删除校验。
+- 同一活动写入先取得活动行锁，再检查状态和修改。编号由 MySQL 复合唯一约束保证，重复创建/改号返回 409 `NUMBER_CONFLICT`，失败不留部分修改或审计。删除活动显式删除草稿名单，不配置数据库级联；07 已为任务及应交名单增加 RESTRICT 外键，保留历史；后续评分表同样须保持历史外键和删除校验。
 - 活动及名单增删改与 `score_event_audit` 同事务，记录 actor、action、target、前后字段、UTC 时间与 request_id，活动删除后仍保留。此审计基础因 05 写入要求提前实现，06 复用扩展；凭证等敏感数据不得加入快照。
 - 草稿接口不接受幂等键或 expected_version。行锁防止状态竞争，但不检测两个编辑者覆盖同一字段，最后提交的对应字段生效。POST 超时后先查询列表核验，禁止盲目自动重建；PATCH/DELETE 超时后先 GET 核验，删除后 404 表示已不存在。409 需刷新或修改编号；503 按 Retry-After 等待并核验是否已保存。
 
@@ -194,9 +194,49 @@ const response = await fetch('/api/v1/auth/login', {
 
 发布后所有草稿编辑及名单增删改被拒绝；展示设置编辑仍留后续。重复发布不重新返回明文。发布超时先 GET publication；成功时即视为发布完成，若补码明文丢失只能由 08 重置后分发。复制没有幂等键，超时先核验活动列表，不能自动重复复制。所有响应禁止缓存。
 
-## 3. 通用业务约定（认证与草稿已实现，其余规划中）
+### 评委预览、会话与重置（提交 08，已实现）
 
-主办方认证、请求来源校验、草稿权限/编号及通用错误已实现；其余业务约定将在相应功能提交中实现并验证。
+| 方法与路径（/api/v1 前缀） | 成功结果 | 权限/用途 |
+| --- | --- | --- |
+| GET /join/{code} | 200 PreviewInfo | 公共，仅已发布活动的基本信息、状态和 exchange_open；不含名单/规则/成绩/凭证 |
+| GET /judge-sessions/csrf | 200 CSRFInfo | 公共，建立独立评委 bootstrap Cookie |
+| POST /judge-sessions/verify | 200 ConfirmationInfo | 可信 Origin + bootstrap CSRF，校验活动码及个人身份码，返回本人姓名/编号和短期确认令牌 |
+| POST /judge-sessions/exchange | 200 JudgeSessionInfo + HttpOnly Cookie | 同一浏览器 bootstrap CSRF + 确认令牌，用户确认身份后建立会话 |
+| GET /judge-sessions/me | 200 JudgeSessionInfo | 有效评委会话，返回本人信息、expires_at、会话 CSRF、read_only |
+| POST /judge-sessions/logout | 204 | 有效评委会话 + Origin + 会话 CSRF，数据库撤销并清除评委 Cookie |
+| POST /events/{event_id}/judges/{judge_id}/reset-credential | 200 CredentialResult | 活动拥有者 + Origin/主办方 CSRF；仅 READY/RUNNING |
+
+调用顺序：公共预览 → `/judge-sessions/csrf` → `verify` → 展示返回姓名编号由用户确认 → `exchange` → `/me` 恢复会话。公共活动码前后去空白、统一大写后为 12 位 ASCII 字母数字。verify 与设置身份码使用相同规范化，必须提供个人码，禁止客户端指定 judge_id。
+
+verify 请求：
+
+```json
+{"public_code":"ABCDEFGH2345","code":" FIRST123 "}
+```
+
+exchange 请求（confirmation_token 取自 verify 响应）：
+
+```json
+{"confirmation_token":"<本次确认令牌>"}
+```
+
+确认令牌为 256 位随机值，数据库只存 SHA-256 摘要，默认 180 秒有效、一次消费，绑定活动/评委/凭证版本及本浏览器 bootstrap Cookie。verify 不建立评分会话。消费令牌、建立会话及评委审计同事务；默认会话绝对有效期 86400 秒，读取及同浏览器重新确认均不续期。数据库仅存会话令牌摘要。所有请求/响应禁止缓存，身份码和确认令牌只经 POST 传递，不放 URL、日志或公共二维码。
+
+Cookie 分离为 `__Host-score_judge_bootstrap`（600 秒）和 `__Host-score_judge_session`，Secure/HttpOnly/SameSite=Strict/Path=/，无 Domain。本机关闭 Secure 时去除 __Host- 前缀。verify/exchange 使用 bootstrap CSRF；logout 使用 `/me` 返回的会话 CSRF。主办方 Cookie、评委 Cookie 及各自 CSRF 互不替代。前端私人邀请 fragment 读取/清除在 14/16 实现。
+
+单有效会话由活动 → 评委 → 确认令牌/会话行锁及生成列 UNIQUE(active_judge_id) 共同保证。第二台设备返回 409 `JUDGE_SESSION_ACTIVE`，需主办方重置换机；原浏览器携带同一有效 Cookie 可通过新的身份确认取得原会话，期限不延长。同一浏览器已有另一评委身份返回 409 `SESSION_SWITCH_REQUIRED`，需先主动退出。过期会话在下次兑换锁内撤销后允许重建。每次鉴权检查服务端到期时间、撤销状态、凭证版本及活动状态；不依赖缓存或客户端判断。
+
+重置请求 `{"reason":"更换手机","code":"NEWCODE123"}`；省略 code 或 null 自动生成。reason 去空白后为 1～500 字。新码不能是本人当前码，也不能是同活动其他评委的码，分别返回 409 `CREDENTIAL_UNCHANGED` / `CREDENTIAL_CONFLICT`。成功时凭证版本 +1、撤销所有旧会话/未消费确认令牌、写入重置原因和版本审计、活动 version +1，在同一事务提交；评委 ID/姓名/编号、冻结规则/名单与历史归属保持不变。响应只返回当次新明文。草稿应使用 PUT credential，结束/归档不允许重置，返回 409 `RESET_NOT_ALLOWED`。
+
+FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前已获得的确认令牌）均返回 409 `EVENT_CLOSED`；已有有效会话 `/me` 返回 read_only=true。当前仅交付会话读接口，成绩查询在后续实现；结束/归档操作接口属 11。WebSocket 撤销通知属 18，但 HTTP 鉴权在重置提交后立即拒绝旧会话。
+
+验证按来源（默认 600 次/300 秒，verify/exchange 共用）、活动（3000 次/300 秒）与活动内规范化码的 HMAC 摘要（10 次/300 秒）共享限流；失败和成功都计数，事务提交后才返回 429，重启/多进程不重置计数。同一会场共用 IP 不会把不同码当作同一身份；这不是容量验收结论。数据仅保存摘要、不保存尝试码或 IP 明文。scrypt 仍受每进程最多两次计算限制，503 AUTH_BUSY 按 Retry-After 等待。短期确认令牌每次成功验证最多清理 100 条已过期记录，正式会话与审计不自动删除。
+
+错误还包括 401 `CONFIRMATION_EXPIRED`（缺失/过期/已消费/重置/浏览器不匹配）、`SESSION_EXPIRED`（会话缺失或失效）、`INVALID_CREDENTIALS`（身份码无效），以及通用 Origin/CSRF/参数/数据库错误。verify/exchange/reset 均无自动幂等重试：兑换响应丢失先 GET me；若浏览器没收到 Cookie 而服务端已建会话，需主办方重置，不能抢占已有会话。重置响应丢失先查评委版本，明文无法恢复；必要时主动再次重置并分发。确认过期需重新 verify 后再次确认姓名编号。
+
+## 3. 通用业务约定（实现边界见第 1、2 节）
+
+主办方/评委认证、凭证、发布/复制、请求来源、草稿权限/编号及通用错误已实现；评分控制、幂等写分、大屏及实时约定仍待后续提交。
 
 | 项目 | 约定 |
 | --- | --- |
@@ -214,7 +254,7 @@ const response = await fetch('/api/v1/auth/login', {
 | 评分幂等 | 每次确认操作生成 UUID 作为 Idempotency-Key，重试复用原 key |
 | 权限隔离 | 每个接口校验身份及活动归属，不依赖前端隐藏按钮 |
 
-主办方 Cookie、有效期、CSRF 与错误包装见第 2、6 节；评委会话和分页结构随相关提交补齐。
+主办方/评委 Cookie、有效期、CSRF、分页与错误包装见第 2、6 节。
 活动码仅用于定位活动，不能直接获得评分权限。身份码、会话凭证不进入普通查询响应、日志和公共二维码。
 
 ## 4. 后续接口清单（规划中）
@@ -224,9 +264,6 @@ const response = await fetch('/api/v1/auth/login', {
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 08 | GET /join/{code} | 公开活动预览；公共 |
-| 08 | POST /judge-sessions/exchange | 身份码兑换评委会话 |
-| 08 | POST /events/{id}/judges/{judge_id}/reset-credential | 重置并撤销旧会话；活动拥有者 |
 | 09 | POST /rounds/{id}/open、POST /rounds/{id}/pause、POST /rounds/{id}/resume、POST /rounds/{id}/skip | 任务控制；活动拥有者 |
 | 10 | PUT /rounds/{id}/my-ballot、GET /rounds/{id}/my-ballot | 提交/改分、查询本人有效评分及回执；对应评委 |
 | 11 | POST /rounds/{id}/close、POST /rounds/{id}/reopen | 收评、重开补评；活动拥有者 |
@@ -239,7 +276,7 @@ const response = await fetch('/api/v1/auth/login', {
 | 18 | WS /api/v1/events/{id}/stream（完整路径） | 授权实时订阅；一次性票据 |
 | 20 | GET /events/{id}/exports/{kind} | 汇总/明细/审计 CSV；活动拥有者 |
 
-## 5. 关键业务流程（规划中）
+## 5. 关键业务流程（评分控制及后续部分规划中）
 
 ### 5.1 主持人流程与状态限制
 
@@ -259,7 +296,7 @@ const response = await fetch('/api/v1/auth/login', {
 身份码去除前后空白并统一大写；手动码为 8～32 位 ASCII 字母数字，至少各含一个字母和数字。
 同活动身份码唯一，每位评委默认仅一个有效会话。
 发布后至活动结束前由管理员填写原因重置凭证，原子撤销旧会话；评委 ID 和历史评分归属不变。
-活动结束后停止新会话兑换，已有未过期会话只读。身份确认的具体请求步骤以实现后的接口模型为准。
+活动结束后停止新会话兑换，已有未过期会话只读。身份确认按第 2 节 verify → exchange 两步接口执行，用户确认姓名编号后才提交 exchange。
 
 ### 5.3 提交、改分与超时核验
 
@@ -309,7 +346,7 @@ const response = await fetch('/api/v1/auth/login', {
 
 | HTTP | 已实现错误码 | 含义与处理 |
 | --- | --- | --- |
-| 401 | INVALID_CREDENTIALS | 账号不存在、密码错误或账号停用；统一提示，人工修正 |
+| 401 | INVALID_CREDENTIALS | 主办方账号/密码无效，或评委身份码无效；人工修正 |
 | 401 | SESSION_EXPIRED | 会话缺失、非法、撤销、过期或账号停用；重新登录 |
 | 403 | ORIGIN_FORBIDDEN | 非可信、缺失、null 或重复 Origin；修正来源配置，不自动重试 |
 | 403 | CSRF_INVALID | 缺失或错误 CSRF；登录前重新取 `/auth/csrf`，登录后取 `/auth/me` |
@@ -317,7 +354,7 @@ const response = await fetch('/api/v1/auth/login', {
 | 409 | EVENT_NOT_DRAFT | 活动已不处于草稿；刷新状态 |
 | 409 | NUMBER_CONFLICT | 当前活动同类名单中编号重复；修改编号 |
 | 422 | VALIDATION_ERROR | 请求结构、账号格式或字段长度错误；修正参数 |
-| 429 | RATE_LIMITED | 登录限流；按 `Retry-After` 秒数等待后由用户重试 |
+| 429 | RATE_LIMITED | 登录/评委验证兑换限流；按 `Retry-After` 秒数等待后由用户重试 |
 | 503 | AUTH_BUSY | 密码计算并发已满；`Retry-After: 1` |
 | 503 | SERVICE_UNAVAILABLE | 数据库未配置、不可用、事务失败或池等待超时；`Retry-After: 3` |
 | 404 / 405 | NOT_FOUND / METHOD_NOT_ALLOWED | 路径不存在或方法错误，405 保留 Allow |

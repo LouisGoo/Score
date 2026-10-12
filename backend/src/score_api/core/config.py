@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     login_ip_limit: int = Field(default=30, ge=1, le=1000)
     login_account_limit: int = Field(default=10, ge=1, le=100)
     credential_hmac_key: SecretStr | None = None
+    judge_session_ttl_seconds: int = Field(default=86400, ge=60, le=604800)
+    judge_confirmation_ttl_seconds: int = Field(default=180, ge=30, le=600)
+    judge_limit_window_seconds: int = Field(default=300, ge=1, le=3600)
+    judge_source_limit: int = Field(default=600, ge=100, le=10000)
+    judge_event_limit: int = Field(default=3000, ge=100, le=50000)
+    judge_attempt_limit: int = Field(default=10, ge=1, le=100)
 
     @field_validator("credential_hmac_key")
     @classmethod

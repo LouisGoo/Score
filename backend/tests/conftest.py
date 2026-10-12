@@ -17,6 +17,7 @@ from score_api.core.config import Settings
 from score_api.core.security import session_csrf, token_hash
 from score_api.db import Database, utc_now
 from score_api.events.models import Entry, Event, EventAudit, EventJudge, EventSnapshot
+from score_api.judge_sessions.models import JudgeAuthAudit, JudgeConfirmation, JudgeSession
 from score_api.main import create_app
 from score_api.rounds.models import RoundJudge, ScoringRound
 
@@ -51,7 +52,16 @@ def event_db(database, mysql_settings, monkeypatch):
     yield database, ids
     with database.transaction() as session:
         event_ids = select(Event.id).where(Event.owner_id.in_(ids))
-        for model in (RoundJudge, ScoringRound, EventSnapshot, Entry, EventJudge):
+        for model in (
+            JudgeAuthAudit,
+            JudgeConfirmation,
+            JudgeSession,
+            RoundJudge,
+            ScoringRound,
+            EventSnapshot,
+            Entry,
+            EventJudge,
+        ):
             session.execute(delete(model).where(model.event_id.in_(event_ids)))
         session.execute(delete(EventAudit).where(EventAudit.actor_id.in_(ids)))
         session.execute(delete(Event).where(Event.owner_id.in_(ids)))
