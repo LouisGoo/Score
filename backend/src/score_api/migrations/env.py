@@ -5,6 +5,7 @@ from alembic import context
 from score_api.auth import models  # noqa: F401 -- 注册本批模型供 Alembic 比较
 from score_api.core.config import Settings
 from score_api.db import VERSION_TABLE, Base, create_db_engine
+from score_api.events import models as event_models  # noqa: F401 -- 注册活动模型
 
 
 def include_object(obj, name, type_, reflected, compare_to):

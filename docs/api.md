@@ -1,10 +1,10 @@
 # API 接口文档
 
-更新时间：2026-10-12。当前交付批次：04（主办方会话与请求安全校验）。
+更新时间：2026-10-12。当前交付批次：05（主办方活动草稿管理）。
 
 ## 1. 实现状态与文档分工
 
-**当前已实现存活、数据库就绪及主办方认证端点，尚未实现活动管理、评分及实时接口。**
+**当前已实现存活、数据库就绪、主办方认证及活动/名单草稿 CRUD；发布、身份码、评分及实时接口尚未实现。**
 提交 02 已提供后端评分纯函数，尚未接入 HTTP；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
@@ -112,15 +112,69 @@ const response = await fetch('/api/v1/auth/login', {
 - 会话绝对有效期默认 28800 秒，读取不续期；服务端检查 `expires_at > now`、撤销状态和账号启用状态。数据库仅存 256 位随机令牌的 SHA-256 摘要。主办方可使用多个浏览器；同一浏览器成功重登会撤销其携带的旧会话。评委单会话约束留待 08。
 - 登录尝试按来源 IP 默认 30 次/300 秒、规范化账号 10 次/300 秒限制，成功和失败都消耗配额；来源超限时不建立新账号计数。使用 MySQL 锁和持久化计数，跨进程/重启共享；拒绝不会延长窗口，到期重置。每次登录最多清理 100 条过期计数，未自动删除审计或会话。
 - 来源采用 ASGI 客户端地址，不在应用中读取 X-Forwarded-For。Uvicorn/反向代理必须限制可信转发来源。MySQL 故障时认证失败关闭；限流不依赖 Redis。密码 scrypt 参数为 N=131072、r=8、p=1，随机 16 字节盐；计算时释放数据库连接，单 API 进程最多并行两次。
-- 建号、登录成功/失败、退出写入认证审计，只含动作、内部账号 ID（不存在时为空）、时间与 request_id，不记录密码、Cookie、CSRF、明文 IP 或尝试账号。会话写入/撤销与审计同事务。其余业务审计在提交 06 扩展。
+- 建号、登录成功/失败、退出写入认证审计，只含动作、内部账号 ID（不存在时为空）、时间与 request_id，不记录密码、Cookie、CSRF、明文 IP 或尝试账号。会话写入/撤销与审计同事务。活动草稿审计在 05 实现，凭证审计在 06 扩展。
 
 认证错误码和重试约定见第 6 节；精确字段以 OpenAPI 中 `LoginInput`、`SessionInfo`、`CSRFInfo`、`ErrorResponse` 为准。
 
 代码入口：[认证路由](../backend/src/score_api/auth/router.py)、[认证服务](../backend/src/score_api/auth/service.py)、[授权依赖](../backend/src/score_api/auth/dependencies.py)、[请求/响应模型](../backend/src/score_api/auth/schemas.py)。目录重构未改变 HTTP 路径、字段、错误码或 Cookie 约定。
 
-## 3. 通用业务约定（认证已实现，其余规划中）
+### 主办方活动草稿（提交 05）
 
-主办方认证、请求来源校验及通用错误已实现；其余业务约定将在相应功能提交中实现并验证。
+以下路径均以 `/api/v1` 开头。所有接口需要有效主办方会话；写请求还需可信 Origin 和会话 CSRF。
+
+| 方法与路径 | 成功结果 | 限制 |
+| --- | --- | --- |
+| POST /events | 201，EventInfo | 服务端指定 owner 和 DRAFT 状态 |
+| GET /events | 200，EventInfo 数组 | 仅本人活动，按 created_at、id 倒序 |
+| GET /events/{event_id} | 200，EventInfo | 仅拥有者 |
+| PATCH /events/{event_id} | 200，EventInfo | 仅本人草稿；仅修改传入字段 |
+| DELETE /events/{event_id} | 204 | 仅本人草稿；同事务删除名单，保留审计 |
+| GET /events/{event_id}/entries | 200，EntryInfo 数组 | 按 sort_order、number、id 升序 |
+| POST /events/{event_id}/entries | 201，EntryInfo | 仅本人草稿 |
+| GET /events/{event_id}/entries/{entry_id} | 200，EntryInfo | 活动拥有者；记录必须属于路径活动 |
+| PATCH /events/{event_id}/entries/{entry_id} | 200，EntryInfo | 仅本人草稿 |
+| DELETE /events/{event_id}/entries/{entry_id} | 204 | 仅本人草稿 |
+| GET /events/{event_id}/judges | 200，JudgeInfo 数组 | 按 number、id 升序 |
+| POST /events/{event_id}/judges | 201，JudgeInfo | 仅本人草稿 |
+| GET /events/{event_id}/judges/{judge_id} | 200，JudgeInfo | 活动拥有者；记录必须属于路径活动 |
+| PATCH /events/{event_id}/judges/{judge_id} | 200，JudgeInfo | 仅本人草稿 |
+| DELETE /events/{event_id}/judges/{judge_id} | 204 | 仅本人草稿 |
+
+三个列表均支持 `offset=0`、`limit=100`，limit 为 1～100，offset 为 0～1000000。返回当前页数组；并发增删期间分页不保证快照一致性。
+
+创建示例：`POST /api/v1/events`
+
+```json
+{
+  "title": "项目评审",
+  "organization": "研发部",
+  "planned_at": "2026-10-12T14:00:00+08:00",
+  "duration_seconds": 180,
+  "scoring_rule": {
+    "mode": "single",
+    "criteria": [{"criterion_id": "total", "name": "综合评分", "maximum": "100", "weight": "1", "step": "0.1"}],
+    "algorithm": "mean",
+    "minimum_ballots": null
+  }
+}
+```
+
+新增对象：`POST /events/{event_id}/entries`，请求 `{"number":"001","name":"项目甲","description":"介绍","sort_order":0}`。新增评委：`POST /events/{event_id}/judges`，请求 `{"number":"001","name":"评委甲"}`。评委响应只含内部 ID、event_id、编号和姓名；凭证功能在 06 实现。
+
+- 名称去首尾空白后为 1～80 字；编号为 1～32 字的字符串，保留前导零、区分大小写，不接受 JSON 数字。对象与评委分别在活动内唯一，两类可使用同一编号，不同活动可复用编号。
+- 简介最多 2000 字，组织名称最多 120 字；计划时间需包含时区，读回 UTC。duration_seconds 为 1～86400 或 null（不限时）；allow_revisions 默认 true。大屏配置 screen_title 默认为空（最多 80 字），screen_theme 为 light/dark，show_public_qr 默认 true，leaderboard_limit 为 1～10000，默认 10。
+- 草稿允许空名单、未设置评分规则。提供规则时须满足单项/多维模式、唯一维度 ID、满分/步长及权重合计 1，复用提交 02 的纯函数校验。维度数最多 20，数值必须是最多 9 位整数、6 位小数的非负十进制字符串，不接受浮点、指数、NaN/Infinity。最低有效份数 K 为 1～10000 或 null（发布时按 N 推导），去极值显式 K 不得低于 5；实际名单人数、K≤N 及发布完整性校验在 07。
+- PATCH 至少传一个字段；planned_at、scoring_rule、duration_seconds 可用 null 清空，其余字段拒绝 null，简介等文本可用空字符串清空。scoring_rule 为整块替换；禁止传入 owner_id、status、id、event_id、凭证等未声明字段。
+- 他人活动与不存在活动统一返回 404 `NOT_FOUND`。同一管理员把另一活动的子资源 ID 放入当前路径也返回 404。所有非草稿修改/删除均返回 409 `EVENT_NOT_DRAFT`；发布后的展示字段编辑留待后续批次。
+- 同一活动写入先取得活动行锁，再检查状态和修改。编号由 MySQL 复合唯一约束保证，重复创建/改号返回 409 `NUMBER_CONFLICT`，失败不留部分修改或审计。删除活动显式删除草稿名单，不配置数据库级联；当前尚无任务/评分表，后续须保持历史外键 RESTRICT 与删除校验。
+- 活动及名单增删改与 `score_event_audit` 同事务，记录 actor、action、target、前后字段、UTC 时间与 request_id，活动删除后仍保留。此审计基础因 05 写入要求提前实现，06 复用扩展；凭证等敏感数据不得加入快照。
+- 草稿接口不接受幂等键或 expected_version。行锁防止状态竞争，但不检测两个编辑者覆盖同一字段，最后提交的对应字段生效。POST 超时后先查询列表核验，禁止盲目自动重建；PATCH/DELETE 超时后先 GET 核验，删除后 404 表示已不存在。409 需刷新或修改编号；503 按 Retry-After 等待并核验是否已保存。
+
+字段以 OpenAPI 中 EventCreate/EventPatch/EventInfo、EntryCreate/EntryPatch/EntryInfo、JudgeCreate/JudgePatch/JudgeInfo 为准。入口：[events/router.py](../backend/src/score_api/events/router.py)，验证与迁移说明见 [Review 05](review-05.md)。
+
+## 3. 通用业务约定（认证与草稿已实现，其余规划中）
+
+主办方认证、请求来源校验、草稿权限/编号及通用错误已实现；其余业务约定将在相应功能提交中实现并验证。
 
 | 项目 | 约定 |
 | --- | --- |
@@ -144,13 +198,10 @@ const response = await fetch('/api/v1/auth/login', {
 ## 4. 后续接口清单（规划中）
 
 本表用于定位功能范围。暂不提前复制尚未实现的字段模型；正式实现后更新状态，并链接对应 OpenAPI operation 和本文业务说明。
-名单子资源的具体 CRUD 路径以及授权撤销路径在对应提交中明确。
+名单子资源 CRUD 已在第 2 节明确；授权撤销路径在对应提交中明确。
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 05 | POST /events、GET /events | 创建/列出本人活动；管理会话 |
-| 05 | GET /events/{id}、PATCH /events/{id} | 查询/编辑草稿配置；活动拥有者 |
-| 05 | /events/{id}/entries、/events/{id}/judges 子资源 | 草稿名单 CRUD；活动拥有者 |
 | 06 | PUT /events/{id}/judges/{judge_id}/credential | 草稿身份码设置；活动拥有者，仅本次返回明文 |
 | 07 | POST /events/{id}/publish、POST /events/{id}/copy | 发布/复制；活动拥有者 |
 | 08 | GET /join/{code} | 公开活动预览；公共 |
@@ -242,6 +293,9 @@ const response = await fetch('/api/v1/auth/login', {
 | 401 | SESSION_EXPIRED | 会话缺失、非法、撤销、过期或账号停用；重新登录 |
 | 403 | ORIGIN_FORBIDDEN | 非可信、缺失、null 或重复 Origin；修正来源配置，不自动重试 |
 | 403 | CSRF_INVALID | 缺失或错误 CSRF；登录前重新取 `/auth/csrf`，登录后取 `/auth/me` |
+| 404 | NOT_FOUND | 活动/名单不存在或不属于当前主办方/路径活动；不自动重试 |
+| 409 | EVENT_NOT_DRAFT | 活动已不处于草稿；刷新状态 |
+| 409 | NUMBER_CONFLICT | 当前活动同类名单中编号重复；修改编号 |
 | 422 | VALIDATION_ERROR | 请求结构、账号格式或字段长度错误；修正参数 |
 | 429 | RATE_LIMITED | 登录限流；按 `Retry-After` 秒数等待后由用户重试 |
 | 503 | AUTH_BUSY | 密码计算并发已满；`Retry-After: 1` |

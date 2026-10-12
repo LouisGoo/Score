@@ -2,12 +2,13 @@
 
 为固定评委的比赛、答辩和项目评审提供主持人控制台、手机评分与只读大屏。
 
-目前交付 **04：主办方会话与请求安全校验**。已有评分纯函数、MySQL 持久化、管理员建号 CLI、登录/退出、服务端会话、Origin/CSRF 校验、共享限流及统一错误；活动管理、评分 HTTP 流程和前端登录页面留待后续批次。
+目前交付 **05：主办方活动草稿管理**。已有评分纯函数、MySQL 持久化、主办方认证和活动/对象/评委草稿 CRUD，支持归属隔离、编号唯一、草稿状态限制及同事务审计；发布、身份码、评分 HTTP 流程和前端管理页面留待后续批次。
 
 - [需求与架构设计](./docs/在线打分系统-产品需求与架构设计.md)
 - [接口文档与业务约定](./docs/api.md)
 - [逐次 commit 计划](./docs/commit-plan.md)
 - [认证功能 review](./docs/review-04.md)
+- [活动草稿 review](./docs/review-05.md)
 - [当前目录重构 review](./docs/review-auth-refactor.md)
 
 ## 环境与目录
@@ -30,6 +31,11 @@ backend/src/score_api/
 │   ├── service.py       会话、登录限流、事务与认证审计
 │   ├── models.py        认证数据库模型
 │   └── cli.py           管理员建号入口
+├── events/              草稿 CRUD、owner 校验、规则配置及活动审计
+│   ├── router.py
+│   ├── schemas.py
+│   ├── service.py
+│   └── models.py
 ├── db.py                连接池、事务、Base、UTC 类型
 ├── scoring.py           独立评分纯函数
 └── migrations/          Alembic 环境及已有迁移历史
@@ -38,7 +44,7 @@ frontend/src/            React 页面
 docs/                    开发与 review 文档
 ```
 
-后续按业务新增 `events/`、`rounds/` 等目录，沿用 router/schemas/service/models 的职责划分；只在实际需要时创建文件。共用设施放 `core/`，各业务模型在 `migrations/env.py` 显式导入，确保 Alembic 能发现。路由负责 HTTP 输入输出，服务负责业务事务，不传入 Request/Response；暂不额外引入 repository 层。
+后续按业务新增 `rounds/` 等目录，沿用 router/schemas/service/models 的职责划分；只在实际需要时创建文件。共用设施放 `core/`，各业务模型在 `migrations/env.py` 显式导入，确保 Alembic 能发现。路由负责 HTTP 输入输出，服务负责业务事务，不传入 Request/Response；暂不额外引入 repository 层。
 
 ## 本地启动
 
@@ -97,6 +103,8 @@ Compose 仅绑定本机 3306/6379，示例密码仅供本地使用。首次初�
 
 迁移显式运行，不在 API 启动时自动执行。03 基线建立项目专用的 `score_alembic_version`；04 新增 `score_admins`、`score_admin_sessions`、`score_login_buckets` 和 `score_auth_audit`。迁移不清空既有表，其他项目的版本表不参与迁移；不能用 `stamp` 覆盖其他项目版本。当前远程实例的四张旧表已按用户授权加 `_old` 后缀归档，数据保留，详见 Review 03。04 已由用户执行远程升级，并只读核验版本为 `0004_admin_auth`、四张认证表齐全；随后进行的目录重构不增加迁移，无需再次升级数据库。
 自动生成迁移会忽略模型之外的既有表，后续有意删表应编写并 review 明确的迁移。MySQL DDL 不保证整批事务回滚，生产变更前仍需备份。
+
+05 新增 `0005_event_drafts`，创建 `score_events`、`score_entries`、`score_event_judges`、`score_event_audit`。本批仅在本地独立测试库验证，远程数据库未升级；运行活动接口前需对选定目标库显式执行 `alembic upgrade head`。未升级时 ready 将返回 503。活动接口及重试语义见 [API 文档](docs/api.md)。
 
 每个 API 进程最多 10 条连接（5+5），worker 使用 `Database(settings, role="worker")`，最多 2 条（2+0）；迁移不保留连接池。
 默认池等待 3 秒、连接超时 3 秒、读写超时 5 秒、连接回收 300 秒、InnoDB 锁等待 3 秒，均可通过示例环境变量调整。
