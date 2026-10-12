@@ -182,6 +182,18 @@ const response = await fetch('/api/v1/auth/login', {
 
 错误：格式不合规 422 `VALIDATION_ERROR`，重复码 409 `CREDENTIAL_CONFLICT`，非草稿 409 `EVENT_NOT_DRAFT`，无权或路径绑定错误 404；生成碰撞最多重试 5 次，耗尽 503 `CREDENTIAL_GENERATION_BUSY`（Retry-After: 1），高成本哈希繁忙 503 `AUTH_BUSY`。本操作无幂等 key，超时先查询元数据确认版本；若明文丢失只能重新设置，不可自动重复生成。发布后重置由 08 提供。
 
+### 活动发布与复制（提交 07，已实现）
+
+- `POST /api/v1/events/{event_id}/publish`：拥有者 + Origin/CSRF；无请求体。成功 200 `PublishResult`，包含 EventInfo、不可变 snapshot、各对象的 PENDING 任务和 **仅本次补齐** 的 generated_credentials。已有手动或自动码不回显、不覆盖。公开活动码为 12 位随机字母数字，仅定位活动。EventInfo 新增 public_code、published_at、version（草稿 0、发布 1）。
+- `GET /api/v1/events/{event_id}/publication`：仅拥有者，200 `PublicationInfo`。查询已持久化的规则/名单快照及任务，无凭证；草稿返回 404。用于发布响应丢失后的核验，不等于 13 的按角色状态快照。
+- `POST /api/v1/events/{event_id}/copy`：拥有者 + Origin/CSRF；任意活动状态均可复制，无请求体，201 EventInfo。复制配置及名单，所有内部 ID 重新生成，新活动为 DRAFT、version=0，无活动码/发布时间/凭证/会话/任务/评分/结果。
+
+发布要求至少一个对象、一位评委及完整规则；使用实际 N 校验算法最低人数与 K≤N，缺省 K 根据评分核心推导并固化。原始规则字段、维度、名单 ID/编号/姓名/对象顺序、过程设置写入 `score_event_snapshots`，每场只允许一份。每个对象建立一个任务，每个任务冻结全部应交评委；复合外键禁止跨活动关联，RESTRICT 保留历史。快照不含凭证状态、哈希或 HMAC。07 不提供开评/提交/任务状态修改接口。
+
+补码慢哈希在事务外准备；提交时锁活动并重新读取规则/名单/凭证。发布状态、活动码、补码、快照、任务、应交名单及审计在同一事务提交；任何失败均回滚。准备期间新增未设码评委或新码冲突返回 409 `PUBLISH_CONFLICT`，核验后可重新发布；并发发布只有一个成功，另一请求 409 `EVENT_NOT_DRAFT`。校验不合格返回 422 `PUBLISH_INVALID`。活动码唯一碰撞最多重试 5 次，耗尽 503 `PUBLIC_CODE_BUSY`。权限及通用错误同草稿接口。
+
+发布后所有草稿编辑及名单增删改被拒绝；展示设置编辑仍留后续。重复发布不重新返回明文。发布超时先 GET publication；成功时即视为发布完成，若补码明文丢失只能由 08 重置后分发。复制没有幂等键，超时先核验活动列表，不能自动重复复制。所有响应禁止缓存。
+
 ## 3. 通用业务约定（认证与草稿已实现，其余规划中）
 
 主办方认证、请求来源校验、草稿权限/编号及通用错误已实现；其余业务约定将在相应功能提交中实现并验证。
@@ -212,7 +224,6 @@ const response = await fetch('/api/v1/auth/login', {
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 07 | POST /events/{id}/publish、POST /events/{id}/copy | 发布/复制；活动拥有者 |
 | 08 | GET /join/{code} | 公开活动预览；公共 |
 | 08 | POST /judge-sessions/exchange | 身份码兑换评委会话 |
 | 08 | POST /events/{id}/judges/{judge_id}/reset-credential | 重置并撤销旧会话；活动拥有者 |

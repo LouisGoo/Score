@@ -25,6 +25,9 @@ class Event(Base):
     organization: Mapped[str] = mapped_column(String(120), default="")
     planned_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     status: Mapped[str] = mapped_column(String(16), default="DRAFT")
+    public_code: Mapped[str | None] = mapped_column(String(12, collation="ascii_bin"), unique=True)
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    version: Mapped[int] = mapped_column(default=0, server_default="0")
     scoring_rule: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     duration_seconds: Mapped[int | None]
     allow_revisions: Mapped[bool] = mapped_column(default=True)
@@ -38,7 +41,11 @@ class Event(Base):
 
 class Entry(Base):
     __tablename__ = "score_entries"
-    __table_args__ = (UniqueConstraint("event_id", "number"), Base.__table_args__)
+    __table_args__ = (
+        UniqueConstraint("event_id", "number"),
+        UniqueConstraint("event_id", "id", name="uq_score_entries_event_pk"),
+        Base.__table_args__,
+    )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     event_id: Mapped[str] = mapped_column(ForeignKey("score_events.id"))
@@ -52,6 +59,7 @@ class EventJudge(Base):
     __tablename__ = "score_event_judges"
     __table_args__ = (
         UniqueConstraint("event_id", "number"),
+        UniqueConstraint("event_id", "id", name="uq_score_judges_event_pk"),
         UniqueConstraint("event_id", "credential_lookup", name="uq_score_judges_event_credential"),
         CheckConstraint(
             "(credential_hash IS NULL AND credential_lookup IS NULL "
@@ -98,4 +106,25 @@ class EventAudit(Base):
     before: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     after: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     request_id: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class EventSnapshot(Base):
+    """发布时插入一次；API 不提供更新或删除入口。无凭证字段。"""
+
+    __tablename__ = "score_event_snapshots"
+    __table_args__ = (
+        UniqueConstraint("event_id"),
+        UniqueConstraint("event_id", "id", name="uq_score_snapshots_event_pk"),
+        Base.__table_args__,
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    event_id: Mapped[str] = mapped_column(ForeignKey("score_events.id"))
+    rule_version: Mapped[int]
+    scoring_rule: Mapped[dict] = mapped_column(JSON)
+    entries: Mapped[list] = mapped_column(JSON)
+    judges: Mapped[list] = mapped_column(JSON)
+    duration_seconds: Mapped[int | None]
+    allow_revisions: Mapped[bool]
     created_at: Mapped[datetime] = mapped_column(UTCDateTime())

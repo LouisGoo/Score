@@ -23,13 +23,15 @@ from score_api.events.schemas import (
 Member = type[Entry] | type[EventJudge]
 
 
-def owned_event(session: Session, owner_id: str, event_id: str, *, write=False) -> Event:
+def owned_event(
+    session: Session, owner_id: str, event_id: str, *, write=False, draft_only=True
+) -> Event:
     query = select(Event).where(Event.id == event_id, Event.owner_id == owner_id)
     event = session.scalar(query.with_for_update() if write else query)
     if event is None:
         # 隐藏活动是否存在，不为他人活动暴露名称、名单或状态。
         raise APIError(404, "NOT_FOUND", "活动不存在")
-    if write and event.status != "DRAFT":
+    if write and draft_only and event.status != "DRAFT":
         raise APIError(409, "EVENT_NOT_DRAFT", "仅允许修改或删除草稿活动")
     return event
 

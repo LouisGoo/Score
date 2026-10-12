@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from score_api.auth.dependencies import database_for, require_admin
 from score_api.auth.service import Principal
 from score_api.core.errors import ErrorResponse
-from score_api.events import service
+from score_api.events import publication, service
 from score_api.events.models import Entry, EventJudge
+from score_api.events.publication_schemas import PublicationInfo, PublishResult
 from score_api.events.schemas import (
     EntryCreate,
     EntryInfo,
@@ -29,6 +30,34 @@ router = APIRouter(
 Admin = Annotated[Principal, Depends(require_admin)]
 Limit = Annotated[int, Query(ge=1, le=100)]
 Offset = Annotated[int, Query(ge=0, le=1000000)]
+
+
+@router.post("/{event_id}/publish", response_model=PublishResult)
+def publish_event(event_id: str, request: Request, principal: Admin):
+    return publication.publish_event(
+        database_for(request),
+        request.app.state.settings,
+        principal.admin.id,
+        event_id,
+        request.state.request_id,
+        request.app.state.clock,
+    )
+
+
+@router.get("/{event_id}/publication", response_model=PublicationInfo)
+def read_publication(event_id: str, request: Request, principal: Admin):
+    return publication.read_publication(database_for(request), principal.admin.id, event_id)
+
+
+@router.post("/{event_id}/copy", response_model=EventInfo, status_code=201)
+def copy_event(event_id: str, request: Request, principal: Admin):
+    return publication.copy_event(
+        database_for(request),
+        principal.admin.id,
+        event_id,
+        request.state.request_id,
+        request.app.state.clock,
+    )
 
 
 @router.post("", response_model=EventInfo, status_code=201)

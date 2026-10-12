@@ -107,6 +107,9 @@ class EventInfo(EventCreate):
     id: str
     owner_id: str
     status: Literal["DRAFT", "READY", "RUNNING", "FINISHED", "ARCHIVED"]
+    public_code: str | None
+    published_at: datetime | None
+    version: int
     created_at: datetime
     updated_at: datetime
 
