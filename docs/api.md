@@ -1,10 +1,10 @@
 # API 接口文档
 
-更新时间：2026-10-12。当前交付批次：08（评委会话兑换与撤销）。
+更新时间：2026-10-13。当前交付批次：09（评分任务控制）。
 
 ## 1. 实现状态与文档分工
 
-**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委身份确认/会话兑换及凭证重置撤销。评分任务控制、评分写入、成绩及实时接口尚未实现。**
+**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委身份确认/会话兑换及凭证重置撤销。评分任务开评/暂停/恢复/跳过已实现；评分写入、成绩及实时接口尚未实现。**
 提交 02 已提供后端评分纯函数，尚未接入 HTTP；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
@@ -188,7 +188,7 @@ const response = await fetch('/api/v1/auth/login', {
 - `GET /api/v1/events/{event_id}/publication`：仅拥有者，200 `PublicationInfo`。查询已持久化的规则/名单快照及任务，无凭证；草稿返回 404。用于发布响应丢失后的核验，不等于 13 的按角色状态快照。
 - `POST /api/v1/events/{event_id}/copy`：拥有者 + Origin/CSRF；任意活动状态均可复制，无请求体，201 EventInfo。复制配置及名单，所有内部 ID 重新生成，新活动为 DRAFT、version=0，无活动码/发布时间/凭证/会话/任务/评分/结果。
 
-发布要求至少一个对象、一位评委及完整规则；使用实际 N 校验算法最低人数与 K≤N，缺省 K 根据评分核心推导并固化。原始规则字段、维度、名单 ID/编号/姓名/对象顺序、过程设置写入 `score_event_snapshots`，每场只允许一份。每个对象建立一个任务，每个任务冻结全部应交评委；复合外键禁止跨活动关联，RESTRICT 保留历史。快照不含凭证状态、哈希或 HMAC。07 不提供开评/提交/任务状态修改接口。
+发布要求至少一个对象、一位评委及完整规则；使用实际 N 校验算法最低人数与 K≤N，缺省 K 根据评分核心推导并固化。原始规则字段、维度、名单 ID/编号/姓名/对象顺序、过程设置写入 `score_event_snapshots`，每场只允许一份。每个对象建立一个任务，每个任务冻结全部应交评委；复合外键禁止跨活动关联，RESTRICT 保留历史。快照不含凭证状态、哈希或 HMAC。09 提供开评/暂停/恢复/跳过，评分提交待 10。
 
 补码慢哈希在事务外准备；提交时锁活动并重新读取规则/名单/凭证。发布状态、活动码、补码、快照、任务、应交名单及审计在同一事务提交；任何失败均回滚。准备期间新增未设码评委或新码冲突返回 409 `PUBLISH_CONFLICT`，核验后可重新发布；并发发布只有一个成功，另一请求 409 `EVENT_NOT_DRAFT`。校验不合格返回 422 `PUBLISH_INVALID`。活动码唯一碰撞最多重试 5 次，耗尽 503 `PUBLIC_CODE_BUSY`。权限及通用错误同草稿接口。
 
@@ -234,9 +234,25 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 错误还包括 401 `CONFIRMATION_EXPIRED`（缺失/过期/已消费/重置/浏览器不匹配）、`SESSION_EXPIRED`（会话缺失或失效）、`INVALID_CREDENTIALS`（身份码无效），以及通用 Origin/CSRF/参数/数据库错误。verify/exchange/reset 均无自动幂等重试：兑换响应丢失先 GET me；若浏览器没收到 Cookie 而服务端已建会话，需主办方重置，不能抢占已有会话。重置响应丢失先查评委版本，明文无法恢复；必要时主动再次重置并分发。确认过期需重新 verify 后再次确认姓名编号。
 
+### 评分任务控制（提交 09，已实现）
+
+活动拥有者可 `GET /api/v1/rounds/{id}` 查询任务；`POST /rounds/{id}/open`、`/pause`、`/resume`、`/skip`（前缀 `/api/v1`）控制任务。写请求需主办方 Cookie、Origin、CSRF，成功均为 200 RoundState，含任务 version、deadline_at、remaining_seconds、server_time 和 event_version。发布查询中的任务也增加两个时钟字段。
+
+普通控制请求 `{"expected_version":1}`，跳过为 `{"expected_version":1,"reason":"对象缺席"}`。expected_version 指任务版本（初始 1），为严格正整数；不是活动版本。所有成功控制将任务/活动版本各增 1，与审计同事务。
+
+- open：PENDING → OPEN，使用发布快照时限；READY 活动变 RUNNING。
+- pause：OPEN → PAUSED，必须锁内当前时间严格早于截止。冻结 Decimal 剩余秒（响应为十进制字符串，精确到微秒），deadline_at 清空。
+- resume：PAUSED → OPEN，按剩余时间重算截止。不限时两字段始终为 null。
+- skip：仅 PENDING → SKIPPED；原因去空白后 1～500 字，写入审计。已开始任务的无结果处理在 11。
+- 活动必须为 READY/RUNNING；同场最多一个 OPEN/PAUSED，活动行锁及数据库生成列唯一约束共同保证。先锁活动后锁任务，再读取时钟和状态。
+
+错误：无权/不存在 404 NOT_FOUND；旧任务版本 409 VERSION_CONFLICT；状态不允许 409 ROUND_STATE_CONFLICT；活动结束 409 EVENT_NOT_RUNNING；已有活跃任务 409 ACTIVE_ROUND_EXISTS；截止或恰好截止 409 DEADLINE_EXCEEDED。422 表示版本/原因/字段不合法。
+
+控制接口无幂等 key；超时先 GET 当前任务核验，不能盲目重复操作。版本冲突需刷新并重新确认；503 按 Retry-After 退避后先查询。收评、重开、成绩公布在 11，自动截止收评在 12；即使尚未自动关闭，截止后也不能暂停或提交新评分。
+
 ## 3. 通用业务约定（实现边界见第 1、2 节）
 
-主办方/评委认证、凭证、发布/复制、请求来源、草稿权限/编号及通用错误已实现；评分控制、幂等写分、大屏及实时约定仍待后续提交。
+主办方/评委认证、凭证、发布/复制、请求来源、草稿权限/编号及通用错误已实现；评分控制已实现；幂等写分、大屏及实时约定仍待后续提交。
 
 | 项目 | 约定 |
 | --- | --- |
@@ -264,7 +280,6 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 09 | POST /rounds/{id}/open、POST /rounds/{id}/pause、POST /rounds/{id}/resume、POST /rounds/{id}/skip | 任务控制；活动拥有者 |
 | 10 | PUT /rounds/{id}/my-ballot、GET /rounds/{id}/my-ballot | 提交/改分、查询本人有效评分及回执；对应评委 |
 | 11 | POST /rounds/{id}/close、POST /rounds/{id}/reopen | 收评、重开补评；活动拥有者 |
 | 11 | POST /rounds/{id}/publish-result、POST /rounds/{id}/no-result | 公布、标记无结果；活动拥有者 |

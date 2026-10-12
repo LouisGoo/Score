@@ -4,6 +4,7 @@ from pydantic import ConfigDict
 
 from score_api.credentials.schemas import CredentialResult
 from score_api.events.schemas import EntryInfo, EventInfo, InputModel, JudgeCreate, RuleInput
+from score_api.rounds.schemas import RoundInfo
 
 
 class FrozenJudge(JudgeCreate):
@@ -28,16 +29,6 @@ class SnapshotInfo(InputModel):
     duration_seconds: int | None
     allow_revisions: bool
     created_at: datetime
-
-
-class RoundInfo(InputModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    event_id: str
-    entry_id: str
-    rule_id: str
-    status: str
-    version: int
 
 
 class PublicationInfo(InputModel):

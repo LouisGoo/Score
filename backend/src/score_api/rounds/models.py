@@ -1,7 +1,18 @@
-from sqlalchemy import CheckConstraint, ForeignKeyConstraint, String, UniqueConstraint
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import (
+    CheckConstraint,
+    Computed,
+    ForeignKeyConstraint,
+    Index,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
-from score_api.db import Base
+from score_api.db import Base, UTCDateTime
 
 
 class ScoringRound(Base):
@@ -9,6 +20,9 @@ class ScoringRound(Base):
     __table_args__ = (
         UniqueConstraint("event_id", "entry_id"),
         UniqueConstraint("event_id", "id", name="uq_score_rounds_event_pk"),
+        UniqueConstraint("active_event_id"),
+        Index("ix_score_rounds_due", "status", "deadline_at", "id"),
+        CheckConstraint("remaining_seconds IS NULL OR remaining_seconds >= 0", name="remaining"),
         ForeignKeyConstraint(
             ["event_id", "entry_id"], ["score_entries.event_id", "score_entries.id"]
         ),
@@ -29,6 +43,14 @@ class ScoringRound(Base):
     rule_id: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(16), default="PENDING")
     version: Mapped[int] = mapped_column(default=1)
+    deadline_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    remaining_seconds: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    active_event_id: Mapped[str | None] = mapped_column(
+        String(32),
+        Computed(
+            "CASE WHEN status IN ('OPEN', 'PAUSED') THEN event_id ELSE NULL END", persisted=True
+        ),
+    )
 
 
 class RoundJudge(Base):
