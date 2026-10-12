@@ -3,7 +3,7 @@ import os
 import pytest
 from sqlalchemy.engine import make_url
 
-from score_api.config import Settings
+from score_api.core.config import Settings
 from score_api.db import Database
 
 

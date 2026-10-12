@@ -2,12 +2,13 @@
 
 为固定评委的比赛、答辩和项目评审提供主持人控制台、手机评分与只读大屏。
 
-目前交付 **03：MySQL 持久化基础**。已有评分纯函数、SQLAlchemy 事务与连接池、Alembic 迁移和存活/就绪检查；登录、评分 HTTP 流程与大屏业务尚未实现。
+目前交付 **04：主办方会话与请求安全校验**。已有评分纯函数、MySQL 持久化、管理员建号 CLI、登录/退出、服务端会话、Origin/CSRF 校验、共享限流及统一错误；活动管理、评分 HTTP 流程和前端登录页面留待后续批次。
 
 - [需求与架构设计](./docs/在线打分系统-产品需求与架构设计.md)
 - [接口文档与业务约定](./docs/api.md)
 - [逐次 commit 计划](./docs/commit-plan.md)
-- [当前 review 说明](./docs/review-03.md)
+- [认证功能 review](./docs/review-04.md)
+- [当前目录重构 review](./docs/review-auth-refactor.md)
 
 ## 环境与目录
 
@@ -16,12 +17,28 @@ Python 锁文件在 Python 3.10 下生成，CI 使用相同版本；升级 Pytho
 数据库采用 MySQL 8.0 InnoDB；本地 Compose 固定为用户提供的 8.0.40。Redis 本批提供容器，应用通知功能在后续批次接入。
 
 ```text
-backend/src/score_api/   FastAPI 应用
-                        scoring.py 为独立评分核心
-backend/tests/          后端测试
-frontend/src/           React 页面
-docs/                   开发与 review 文档
+backend/src/score_api/
+├── main.py              应用工厂、生命周期、路由注册、健康检查
+├── core/                跨业务的配置、错误处理、密码与令牌工具
+│   ├── config.py
+│   ├── errors.py
+│   └── security.py
+├── auth/                主办方认证
+│   ├── router.py        HTTP 端点与 Cookie
+│   ├── schemas.py       请求/响应模型
+│   ├── dependencies.py  请求中的会话与 CSRF 校验
+│   ├── service.py       会话、登录限流、事务与认证审计
+│   ├── models.py        认证数据库模型
+│   └── cli.py           管理员建号入口
+├── db.py                连接池、事务、Base、UTC 类型
+├── scoring.py           独立评分纯函数
+└── migrations/          Alembic 环境及已有迁移历史
+backend/tests/           后端测试
+frontend/src/            React 页面
+docs/                    开发与 review 文档
 ```
+
+后续按业务新增 `events/`、`rounds/` 等目录，沿用 router/schemas/service/models 的职责划分；只在实际需要时创建文件。共用设施放 `core/`，各业务模型在 `migrations/env.py` 显式导入，确保 Alembic 能发现。路由负责 HTTP 输入输出，服务负责业务事务，不传入 Request/Response；暂不额外引入 repository 层。
 
 ## 本地启动
 
@@ -78,7 +95,7 @@ Compose 仅绑定本机 3306/6379，示例密码仅供本地使用。首次初�
 远程实例通过服务端 `backend/.env` 的 `DATABASE_URL` 配置，格式为 `mysql+pymysql://用户:URL编码后的密码@主机:端口/数据库`。
 凭证不进入源码；生产 TLS 应按提供方的 CA 配置 `ssl_ca`、`ssl_verify_cert=true`、`ssl_verify_identity=true` URL 参数并实际验证，不将驱动默认协商等同于证书验证。
 
-迁移显式运行，不在 API 启动时自动执行。本批基线只建立项目专用的 `score_alembic_version`，不创建未来业务表，也不清空已有表；其他项目的版本表不参与迁移。迁移与就绪检查均使用项目专用表，不能用 `stamp` 覆盖其他项目版本。当前远程实例的四张旧表已按用户授权加 `_old` 后缀归档，数据保留，详见 Review 03。
+迁移显式运行，不在 API 启动时自动执行。03 基线建立项目专用的 `score_alembic_version`；04 新增 `score_admins`、`score_admin_sessions`、`score_login_buckets` 和 `score_auth_audit`。迁移不清空既有表，其他项目的版本表不参与迁移；不能用 `stamp` 覆盖其他项目版本。当前远程实例的四张旧表已按用户授权加 `_old` 后缀归档，数据保留，详见 Review 03。04 已由用户执行远程升级，并只读核验版本为 `0004_admin_auth`、四张认证表齐全；随后进行的目录重构不增加迁移，无需再次升级数据库。
 自动生成迁移会忽略模型之外的既有表，后续有意删表应编写并 review 明确的迁移。MySQL DDL 不保证整批事务回滚，生产变更前仍需备份。
 
 每个 API 进程最多 10 条连接（5+5），worker 使用 `Database(settings, role="worker")`，最多 2 条（2+0）；迁移不保留连接池。
@@ -86,6 +103,23 @@ Compose 仅绑定本机 3306/6379，示例密码仅供本地使用。首次初�
 每条物理连接使用 UTC、utf8mb4 和 READ COMMITTED。`UTCDateTime` 以 DATETIME(6) 存 UTC，读回带 UTC 时区的时间，拒绝无时区输入。
 业务代码使用 `with database.transaction() as session:`，正常退出提交，异常回滚并归还连接；事务内不执行广播或其他外部网络调用。
 扩进程、滚动发布、迁移及其他客户端连接需要合计，不能把每进程预算当作实例总预算。
+
+## 主办方建号与认证
+
+在 `backend` 目录，确认 `.env` 指向目标数据库，然后执行：
+
+```bash
+../.venv/bin/alembic upgrade head
+../.venv/bin/python -m score_api.auth.cli host.admin
+```
+
+CLI 通过隐藏输入两次确认密码；密码为 12～128 个字符，不通过命令行参数传递。账号为 3～64 位 ASCII 字母、数字、点、下划线或连字符，首位为字母或数字，去除首尾空白并转为小写。重复账号被拒绝，不覆盖密码；无公开注册接口。
+
+认证调用顺序：`GET /api/v1/auth/csrf` → 携带 Cookie、`Origin` 和 `X-CSRF-Token` 执行 `POST /api/v1/auth/login` → `GET /api/v1/auth/me` 恢复当前身份与会话 CSRF → 携带会话 CSRF 执行 `POST /api/v1/auth/logout`。详细请求示例与错误处理见 [接口文档](docs/api.md)。
+
+默认会话绝对有效期 8 小时；退出在数据库撤销会话，旧 Cookie 无法继续使用。默认启用 Secure、HttpOnly、SameSite=Strict，使用 `__Host-` Cookie。本机 HTTP 开发按 `.env.example` 显式设置 `SCORE_COOKIE_SECURE=false`；生产保持 true。可信页面来源由 `SCORE_ALLOWED_ORIGINS` JSON 数组明确配置，默认只接受本机 5173；使用 15173 等端口时同步修改。通过 Vite 同源 `/api` 代理调用，未开放跨域 CORS。
+
+登录按来源 IP（每 5 分钟 30 次）与规范化账号（每 5 分钟 10 次）共享限流，成功和失败都计数；MySQL 不可用时认证返回 503。服务只使用 ASGI 客户端地址：本机直连启动可加 `--no-proxy-headers`；部署代理时必须显式配置 Uvicorn 的可信代理 IP，禁止无条件信任公网 `X-Forwarded-For`。scrypt 每次约需 128 MiB，单进程最多同时计算两次，繁忙时返回 503。
 
 ## 验证
 

@@ -2,7 +2,7 @@ import asyncio
 
 import httpx
 
-from score_api.config import Settings
+from score_api.core.config import Settings
 from score_api.main import create_app
 
 

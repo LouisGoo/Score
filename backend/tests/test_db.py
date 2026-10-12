@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
-from score_api.config import Settings
+from score_api.core.config import Settings
 from score_api.db import UTCDateTime, create_db_engine
 from score_api.main import create_app
 

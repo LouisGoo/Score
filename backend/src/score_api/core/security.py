@@ -5,7 +5,7 @@ import re
 import secrets
 from threading import BoundedSemaphore
 
-from score_api.errors import APIError
+from score_api.core.errors import APIError
 
 PASSWORD_SLOTS = BoundedSemaphore(2)
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{43}\Z")

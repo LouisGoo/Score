@@ -1,10 +1,10 @@
 # API 接口文档
 
-更新时间：2026-10-11。当前交付批次：03（MySQL 持久化基础）。
+更新时间：2026-10-12。当前交付批次：04（主办方会话与请求安全校验）。
 
 ## 1. 实现状态与文档分工
 
-**当前仅实现存活和数据库就绪检查端点，尚未实现登录、活动管理、评分及实时接口。**
+**当前已实现存活、数据库就绪及主办方认证端点，尚未实现活动管理、评分及实时接口。**
 提交 02 已提供后端评分纯函数，尚未接入 HTTP；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
@@ -52,7 +52,7 @@ curl -i http://localhost:8000/api/v1/health/live
 前端开发服务器启动后，也可以请求 http://localhost:5173/api/v1/health/live，验证 Vite 代理至后端的连通性。
 
 成功仅表示进程存活，**不代表数据库就绪、允许评分或某份评分已经保存**。
-当前尚无统一业务错误格式或 request_id 中间件；不要将下文规划中的错误约定当作现有行为。
+响应头包含 `X-Request-ID`；统一错误包装见第 6 节，探测响应体保持兼容。
 
 实现：[main.py](../backend/src/score_api/main.py)。
 验证：[test_health.py](../backend/tests/test_health.py)。
@@ -74,11 +74,53 @@ Redis 本批未接入应用，不参与就绪判断；Redis 通知与降级状�
 curl -i http://localhost:8000/api/v1/health/ready
 ```
 
-验证：[test_db.py](../backend/tests/test_db.py)、[test_mysql.py](../backend/tests/test_mysql.py)。统一业务错误及 request_id 仍在提交 04 实现。
+验证：[test_db.py](../backend/tests/test_db.py)、[test_mysql.py](../backend/tests/test_mysql.py)。探测 503 保留上述专用响应体，并带 `X-Request-ID`。
 
-## 3. 通用业务约定（规划中）
+### 主办方认证（提交 04）
 
-除 /api/v1 前缀已用于存活接口外，下列约定将在相应功能提交中实现并验证。
+| 方法与路径 | 权限 | 成功结果 |
+| --- | --- | --- |
+| GET /api/v1/auth/csrf | 无需会话 | 200，返回登录用 csrf_token，并写入有效期 600 秒的 HttpOnly 双提交 Cookie |
+| POST /api/v1/auth/login | 可信 Origin + 登录 CSRF | 200，返回 admin、expires_at、会话 csrf_token，并设置会话 Cookie |
+| GET /api/v1/auth/me | 有效主办方会话 | 200，返回本人身份、原始过期时间和会话 csrf_token |
+| POST /api/v1/auth/logout | 有效主办方会话 + 可信 Origin + 会话 CSRF | 204，无响应体；撤销会话并清除 Cookie |
+
+登录请求体示例（仅测试用）：
+
+```json
+{"login":"host.admin","password":"example-password-only"}
+```
+
+账号通过服务端 `python -m score_api.auth.cli host.admin` 建立；无公开注册、重置密码或修改账号接口。账号去首尾空白后转小写，采用 3～64 位 ASCII 字母、数字、点、下划线或连字符，首位为字母或数字。CLI 新建密码为 12～128 字符，HTTP 登录允许 1～128 字符并统一校验失败。密码为 SecretStr，参数错误不回显输入。
+
+浏览器通过同源 `/api` 访问（开发期使用 Vite 代理）：
+
+```javascript
+const prelogin = await fetch('/api/v1/auth/csrf', { credentials: 'same-origin' }).then(r => r.json());
+const response = await fetch('/api/v1/auth/login', {
+  method: 'POST', credentials: 'same-origin',
+  headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': prelogin.csrf_token },
+  body: JSON.stringify({ login: 'host.admin', password: enteredPassword }),
+});
+// 先检查 response.ok；成功后保留响应中的会话 csrf_token，替换登录前令牌。
+// Origin 由浏览器发送，值必须在 SCORE_ALLOWED_ORIGINS 中。
+```
+
+- 所有非 GET/HEAD/OPTIONS 请求校验单一、精确匹配的 `Origin`；无 Origin 的 curl/脚本也需显式提供。不依据 Host、Referer 或请求头自动扩展可信列表，未开放跨域 CORS。
+- 登录前 CSRF 使用随机双提交令牌；登录后 CSRF 从随机会话令牌经独立用途摘要派生，与会话绑定。都通过 JSON 提供并在 `X-CSRF-Token` 回传，不从 URL 接收。退出后不能复用原会话，重新登录会轮换会话和 CSRF。
+- 默认 Cookie 名为 `__Host-score_admin_session` / `__Host-score_admin_login_csrf`，`Secure; HttpOnly; SameSite=Strict; Path=/`，不设置 Domain。仅本机 HTTP 显式配置 `SCORE_COOKIE_SECURE=false` 时名称去除 `__Host-`。登录成功清除登录前 Cookie；`/auth/me` 用于刷新页面后的会话恢复。
+- 会话绝对有效期默认 28800 秒，读取不续期；服务端检查 `expires_at > now`、撤销状态和账号启用状态。数据库仅存 256 位随机令牌的 SHA-256 摘要。主办方可使用多个浏览器；同一浏览器成功重登会撤销其携带的旧会话。评委单会话约束留待 08。
+- 登录尝试按来源 IP 默认 30 次/300 秒、规范化账号 10 次/300 秒限制，成功和失败都消耗配额；来源超限时不建立新账号计数。使用 MySQL 锁和持久化计数，跨进程/重启共享；拒绝不会延长窗口，到期重置。每次登录最多清理 100 条过期计数，未自动删除审计或会话。
+- 来源采用 ASGI 客户端地址，不在应用中读取 X-Forwarded-For。Uvicorn/反向代理必须限制可信转发来源。MySQL 故障时认证失败关闭；限流不依赖 Redis。密码 scrypt 参数为 N=131072、r=8、p=1，随机 16 字节盐；计算时释放数据库连接，单 API 进程最多并行两次。
+- 建号、登录成功/失败、退出写入认证审计，只含动作、内部账号 ID（不存在时为空）、时间与 request_id，不记录密码、Cookie、CSRF、明文 IP 或尝试账号。会话写入/撤销与审计同事务。其余业务审计在提交 06 扩展。
+
+认证错误码和重试约定见第 6 节；精确字段以 OpenAPI 中 `LoginInput`、`SessionInfo`、`CSRFInfo`、`ErrorResponse` 为准。
+
+代码入口：[认证路由](../backend/src/score_api/auth/router.py)、[认证服务](../backend/src/score_api/auth/service.py)、[授权依赖](../backend/src/score_api/auth/dependencies.py)、[请求/响应模型](../backend/src/score_api/auth/schemas.py)。目录重构未改变 HTTP 路径、字段、错误码或 Cookie 约定。
+
+## 3. 通用业务约定（认证已实现，其余规划中）
+
+主办方认证、请求来源校验及通用错误已实现；其余业务约定将在相应功能提交中实现并验证。
 
 | 项目 | 约定 |
 | --- | --- |
@@ -96,17 +138,16 @@ curl -i http://localhost:8000/api/v1/health/ready
 | 评分幂等 | 每次确认操作生成 UUID 作为 Idempotency-Key，重试复用原 key |
 | 权限隔离 | 每个接口校验身份及活动归属，不依赖前端隐藏按钮 |
 
-Cookie 名称、有效期、CSRF 头名、分页结构及通用错误 JSON 包装尚未确定，随实现补齐。
+主办方 Cookie、有效期、CSRF 与错误包装见第 2、6 节；评委会话和分页结构随相关提交补齐。
 活动码仅用于定位活动，不能直接获得评分权限。身份码、会话凭证不进入普通查询响应、日志和公共二维码。
 
-## 4. 接口清单（全部规划中）
+## 4. 后续接口清单（规划中）
 
 本表用于定位功能范围。暂不提前复制尚未实现的字段模型；正式实现后更新状态，并链接对应 OpenAPI operation 和本文业务说明。
 名单子资源的具体 CRUD 路径以及授权撤销路径在对应提交中明确。
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 04 | POST /auth/login、POST /auth/logout | 管理登录/退出；退出需管理会话 |
 | 05 | POST /events、GET /events | 创建/列出本人活动；管理会话 |
 | 05 | GET /events/{id}、PATCH /events/{id} | 查询/编辑草稿配置；活动拥有者 |
 | 05 | /events/{id}/entries、/events/{id}/judges 子资源 | 草稿名单 CRUD；活动拥有者 |
@@ -191,9 +232,26 @@ Cookie 名称、有效期、CSRF 头名、分页结构及通用错误 JSON 包�
 - 断线恢复后先同步状态，由评委确认提交；不自动补交过期草稿。
 - 收评与提交通过同一任务锁串行处理，回执仅在数据库事务提交成功后返回。
 
-## 6. 业务错误码（规划中）
+## 6. 错误响应与业务错误码
 
-统一响应需携带 request_id。具体 JSON 结构、各码对应的 HTTP 状态及框架参数校验错误的包装方式，将在提交 04 和对应业务提交中补齐。
+当前通用错误统一为 `{"error":{"code":"...","message":"..."},"request_id":"32位十六进制标识"}`，与响应头 `X-Request-ID` 一致。所有 HTTP 响应都有服务端生成的请求 ID，不采用客户端传入的值；API 响应设 `Cache-Control: no-store`。422 不回显请求体或校验 input，500/503 不返回内部异常、SQL 或凭证。存活/就绪接口保留原有探测响应体，就绪 503 仍是 `Readiness` 模型。
+
+| HTTP | 已实现错误码 | 含义与处理 |
+| --- | --- | --- |
+| 401 | INVALID_CREDENTIALS | 账号不存在、密码错误或账号停用；统一提示，人工修正 |
+| 401 | SESSION_EXPIRED | 会话缺失、非法、撤销、过期或账号停用；重新登录 |
+| 403 | ORIGIN_FORBIDDEN | 非可信、缺失、null 或重复 Origin；修正来源配置，不自动重试 |
+| 403 | CSRF_INVALID | 缺失或错误 CSRF；登录前重新取 `/auth/csrf`，登录后取 `/auth/me` |
+| 422 | VALIDATION_ERROR | 请求结构、账号格式或字段长度错误；修正参数 |
+| 429 | RATE_LIMITED | 登录限流；按 `Retry-After` 秒数等待后由用户重试 |
+| 503 | AUTH_BUSY | 密码计算并发已满；`Retry-After: 1` |
+| 503 | SERVICE_UNAVAILABLE | 数据库未配置、不可用、事务失败或池等待超时；`Retry-After: 3` |
+| 404 / 405 | NOT_FOUND / METHOD_NOT_ALLOWED | 路径不存在或方法错误，405 保留 Allow |
+| 500 | INTERNAL_ERROR | 未预期异常；使用 request_id 排查，不回显内部细节 |
+
+登录/退出无幂等 key。登录响应丢失时先用 `/auth/me` 检查浏览器会话，必要时重新登录；不自动反复提交密码。退出响应丢失后查询 `/auth/me`，401 表示会话已失效；已失效会话再次退出返回 401。认证写入与其审计同事务，提交后才返回成功与设置/删除 Cookie。
+
+以下业务错误码仍为后续提交规划：
 
 | 错误码 | 含义 | 客户端处理方向 |
 | --- | --- | --- |
@@ -207,7 +265,7 @@ Cookie 名称、有效期、CSRF 头名、分页结构及通用错误 JSON 包�
 | INSUFFICIENT_BALLOTS | 未达最低有效份数 | 主持人选择补评或无结果 |
 | IDEMPOTENCY_CONFLICT | 相同 key 对应不同内容 | 停止自动重试，核验原操作 |
 
-以上并非完整错误目录。控制操作版本冲突、限流和依赖故障等错误将在实现时明确，不能推断复用上述某个码。
+以上并非完整业务错误目录。控制操作版本冲突等错误将在对应业务实现时明确，不能推断复用上述某个码。
 
 ## 7. 实时订阅与恢复（规划中）
 

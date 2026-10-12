@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Column, Integer, MetaData, String, Table, inspect, select, text
 from sqlalchemy.exc import TimeoutError
 
-from score_api.config import Settings
+from score_api.core.config import Settings
 from score_api.db import VERSION_TABLE, Database, UTCDateTime
 from score_api.main import create_app
 

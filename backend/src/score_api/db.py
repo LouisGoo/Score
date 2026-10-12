@@ -15,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlalchemy.types import TypeDecorator
 
-from score_api.config import Settings
+from score_api.core.config import Settings
 
 MIGRATIONS = Path(__file__).with_name("migrations")
 # 与共享数据库中其他应用的 Alembic 历史隔离。

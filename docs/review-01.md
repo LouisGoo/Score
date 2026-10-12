@@ -19,7 +19,7 @@
 
 1. [开发计划](commit-plan.md)：范围和节奏是否符合你的预期。
 2. [README](../README.md)：本地开发是否清晰。
-3. [后端入口](../backend/src/score_api/main.py) 与 [配置](../backend/src/score_api/config.py)：应用工厂、存活接口边界。
+3. [后端入口](../backend/src/score_api/main.py) 与 [配置](../backend/src/score_api/core/config.py)：应用工厂、存活接口边界。
 4. [前端页面](../frontend/src/App.tsx) 与 [代理配置](../frontend/vite.config.ts)：连通检查、取消请求、失败重试。
 5. [CI](../.github/workflows/checks.yml) 和依赖锁文件：验证与安装是否可复现。
 

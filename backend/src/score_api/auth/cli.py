@@ -7,10 +7,10 @@ from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from score_api.config import Settings
+from score_api.auth.models import Admin, AuthAudit
+from score_api.core.config import Settings
+from score_api.core.security import hash_password, normalize_login
 from score_api.db import Database
-from score_api.models import Admin, AuthAudit
-from score_api.security import hash_password, normalize_login
 
 
 def create_admin(database: Database, login: str, password: str) -> str:

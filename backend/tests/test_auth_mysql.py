@@ -10,12 +10,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 
-from score_api import admin_cli
-from score_api.auth import consume_login_limits
-from score_api.errors import APIError
+from score_api.auth import cli as admin_cli
+from score_api.auth.models import Admin, AdminSession, AuthAudit, LoginBucket
+from score_api.auth.service import consume_login_limits
+from score_api.core.errors import APIError
+from score_api.core.security import token_hash, verify_password
 from score_api.main import create_app
-from score_api.models import Admin, AdminSession, AuthAudit, LoginBucket
-from score_api.security import token_hash, verify_password
 
 pytestmark = pytest.mark.mysql
 ORIGIN = "https://score.test"
@@ -60,7 +60,7 @@ def login(client, name="host.admin", password=PASSWORD):
 
 
 def test_cli_creates_hash_and_audit_and_duplicate_is_atomic(auth_database, monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["score_api.admin_cli", "Admin"])
+    monkeypatch.setattr("sys.argv", ["score_api.auth.cli", "Admin"])
     monkeypatch.setattr(admin_cli.getpass, "getpass", lambda _: PASSWORD)
     assert admin_cli.main() == 0
     assert admin_cli.main() == 1
@@ -206,17 +206,14 @@ def test_ip_limit_counts_distinct_accounts_and_ignores_forwarded_header(client):
 
 
 def test_account_limit_across_sources_and_concurrent_atomicity(auth_database, mysql_settings):
-    from starlette.requests import Request
-
-    app = create_app(mysql_settings.model_copy(update={"login_account_limit": 2}))
-    app.state.database = auth_database
+    settings = mysql_settings.model_copy(update={"login_account_limit": 2})
+    now = datetime.now(timezone.utc)
     barrier = Barrier(6)
 
     def consume(index):
-        request = Request({"type": "http", "app": app, "client": (f"192.0.2.{index}", 80)})
         barrier.wait(timeout=3)
         try:
-            consume_login_limits(request, "same-account")
+            consume_login_limits(auth_database, settings, now, f"192.0.2.{index}", "same-account")
             return 200
         except APIError as error:
             return error.status
@@ -232,7 +229,7 @@ def test_audit_failure_rolls_back_session_and_does_not_set_cookie(
     def fail(*args, **kwargs):
         raise RuntimeError("secret-audit-error")
 
-    monkeypatch.setattr("score_api.auth.audit", fail)
+    monkeypatch.setattr("score_api.auth.service.audit", fail)
     response = login(client)
     assert response.status_code == 500
     assert "secret" not in response.text
@@ -247,7 +244,7 @@ def test_logout_audit_failure_rolls_back_revocation(client, monkeypatch):
     def fail(*args, **kwargs):
         raise RuntimeError("audit unavailable")
 
-    monkeypatch.setattr("score_api.auth.audit", fail)
+    monkeypatch.setattr("score_api.auth.service.audit", fail)
     response = client.post(
         "/api/v1/auth/logout",
         headers={
@@ -265,7 +262,7 @@ def test_password_verification_releases_connections_and_rechecks_account(
     auth_database,
     admin_id,
 ):
-    from score_api import auth
+    from score_api.auth import service as auth
 
     original = auth.verify_password
 

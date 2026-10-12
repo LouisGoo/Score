@@ -5,10 +5,10 @@ from fastapi import FastAPI, Response
 from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 
-from score_api.auth import router as auth_router
-from score_api.config import Settings
+from score_api.auth.router import router as auth_router
+from score_api.core.config import Settings
+from score_api.core.errors import install_error_handlers
 from score_api.db import Database, utc_now
-from score_api.errors import install_error_handlers
 
 
 class Liveness(BaseModel):

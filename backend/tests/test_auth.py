@@ -5,9 +5,10 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
 
-from score_api import admin_cli, security
-from score_api.config import Settings
-from score_api.errors import APIError
+from score_api.auth import cli as admin_cli
+from score_api.core import security
+from score_api.core.config import Settings
+from score_api.core.errors import APIError
 from score_api.main import create_app
 
 ORIGIN = "https://score.test"
@@ -94,6 +95,15 @@ def test_unconfigured_database_fails_closed(client):
     assert response.json()["error"]["code"] == "SERVICE_UNAVAILABLE"
 
 
+@pytest.mark.parametrize("cookie", [None, "malformed-session"])
+def test_unauthenticated_request_rejected_before_database_lookup(client, cookie):
+    if cookie is not None:
+        client.cookies.set("__Host-score_admin_session", cookie)
+    response = client.get("/api/v1/auth/me")
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "SESSION_EXPIRED"
+
+
 def test_validation_not_found_method_errors_are_sanitized(client):
     responses = [
         client.post(
@@ -142,7 +152,7 @@ def test_no_public_registration(client):
 
 
 def test_cli_confirmation_mismatch_does_not_open_database(monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["score_api.admin_cli", "admin"])
+    monkeypatch.setattr("sys.argv", ["score_api.auth.cli", "admin"])
     entries = iter([PASSWORD, "different"])
     monkeypatch.setattr(admin_cli.getpass, "getpass", lambda _: next(entries))
     assert admin_cli.main() == 1
@@ -152,7 +162,7 @@ def test_cli_confirmation_mismatch_does_not_open_database(monkeypatch, capsys):
 def test_cli_refuses_echoed_password_fallback(monkeypatch, capsys):
     import warnings
 
-    monkeypatch.setattr("sys.argv", ["score_api.admin_cli", "admin"])
+    monkeypatch.setattr("sys.argv", ["score_api.auth.cli", "admin"])
 
     def prompt(_):
         warnings.warn("no terminal", admin_cli.getpass.GetPassWarning, stacklevel=2)
