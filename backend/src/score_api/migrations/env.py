@@ -11,6 +11,7 @@ from score_api.judge_sessions import models as judge_models  # noqa: F401 -- 注
 from score_api.outbox import models as outbox_models  # noqa: F401 -- 事务事件
 from score_api.results import models as result_models  # noqa: F401 -- 冻结成绩
 from score_api.rounds import models as round_models  # noqa: F401 -- 注册任务模型
+from score_api.snapshots import models as snapshot_models  # noqa: F401 -- 大屏授权
 
 
 def include_object(obj, name, type_, reflected, compare_to):

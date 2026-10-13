@@ -13,6 +13,7 @@ from sqlalchemy.exc import OperationalError
 from score_api.ballots.models import Ballot, BallotAudit, BallotRevision, IdempotencyRecord
 from score_api.ballots.schemas import BallotReceipt
 from score_api.core.errors import APIError
+from score_api.core.streams import advance_views
 from score_api.events.models import EventSnapshot
 from score_api.judge_sessions.service import lock_principal
 from score_api.outbox.models import OutboxEvent
@@ -181,6 +182,7 @@ def submit_once(database, principal, round_id, body, key, scores, digest, reques
         )
         event.version += 1
         event.updated_at = now
+        advance_views(session, event, judge_id=principal.judge_id, public=not previous)
         session.add(
             OutboxEvent(
                 id=uuid4().hex,

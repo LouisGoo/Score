@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from score_api.ballots.models import Ballot, BallotRevision
 from score_api.core.errors import APIError
+from score_api.core.streams import advance_views, automatic_screen
 from score_api.events.models import Entry, EventSnapshot
 from score_api.events.schemas import EventInfo
 from score_api.events.service import audit, owned_event
@@ -41,6 +42,8 @@ def latest_result(session, round_id):
 def record_change(session, event, row, actor_id, action, before, reason, request_id, now):
     event.version += 1
     event.updated_at = now
+    automatic_screen(event, action, row)
+    advance_views(session, event)
     if row is not None:
         row.version += 1
     target = row or event

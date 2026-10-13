@@ -15,6 +15,7 @@ from score_api.events.router import router as events_router
 from score_api.judge_sessions.router import router as judge_sessions_router
 from score_api.results.router import router as results_router
 from score_api.rounds.router import router as rounds_router
+from score_api.snapshots.router import router as snapshots_router
 
 
 class Liveness(BaseModel):
@@ -52,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(rounds_router)
     app.include_router(ballots_router)
     app.include_router(results_router)
+    app.include_router(snapshots_router)
 
     @app.get("/api/v1/health/live", response_model=Liveness, tags=["health"])
     def liveness() -> Liveness:

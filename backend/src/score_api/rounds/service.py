@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from score_api.core.errors import APIError
+from score_api.core.streams import advance_views, automatic_screen
 from score_api.events.models import EventSnapshot
 from score_api.events.service import audit, owned_event
 from score_api.rounds.models import ScoringRound
@@ -96,6 +97,8 @@ def control(database, owner_id, round_id, action, body, request_id, clock):
         row.version += 1
         event.version += 1
         event.updated_at = now
+        automatic_screen(event, action, row)
+        advance_views(session, event)
         after = RoundInfo.model_validate(row).model_dump(mode="json")
         if action == "skip":
             after["reason"] = body.reason

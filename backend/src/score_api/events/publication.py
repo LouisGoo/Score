@@ -149,6 +149,10 @@ def publish_event(database, settings, owner_id, event_id, request_id, clock):
         assign_public_code(session, event)
         event.status, event.published_at, event.updated_at = "READY", now, now
         event.version += 1
+        # 首份角色快照的版本从 1 开始，各角色后续独立递增。
+        event.screen_version = 1
+        for judge in judges:
+            judge.snapshot_version = 1
         audit(
             session,
             event,

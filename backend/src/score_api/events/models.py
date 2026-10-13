@@ -28,6 +28,11 @@ class Event(Base):
     public_code: Mapped[str | None] = mapped_column(String(12, collation="ascii_bin"), unique=True)
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     version: Mapped[int] = mapped_column(default=0, server_default="0")
+    screen_version: Mapped[int] = mapped_column(default=0, server_default="0")
+    screen_mode: Mapped[str] = mapped_column(
+        String(16), default="waiting", server_default="waiting"
+    )
+    screen_round_id: Mapped[str | None] = mapped_column(String(32))
     scoring_rule: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     duration_seconds: Mapped[int | None]
     allow_revisions: Mapped[bool] = mapped_column(default=True)
@@ -82,6 +87,7 @@ class EventJudge(Base):
     credential_lookup: Mapped[bytes | None] = mapped_column(BINARY(32))
     credential_source: Mapped[str | None] = mapped_column(String(16))
     credential_version: Mapped[int] = mapped_column(default=0, server_default="0")
+    snapshot_version: Mapped[int] = mapped_column(default=0, server_default="0")
     credential_updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
     @property

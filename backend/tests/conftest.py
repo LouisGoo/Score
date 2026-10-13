@@ -23,6 +23,7 @@ from score_api.main import create_app
 from score_api.outbox.models import OutboxEvent
 from score_api.results.models import ResultSnapshot
 from score_api.rounds.models import RoundJudge, ScoringRound
+from score_api.snapshots.models import ScreenGrant
 
 ORIGIN = "https://score.test"
 
@@ -57,6 +58,7 @@ def event_db(database, mysql_settings, monkeypatch):
         event_ids = select(Event.id).where(Event.owner_id.in_(ids))
         for model in (
             OutboxEvent,
+            ScreenGrant,
             ResultSnapshot,
             BallotAudit,
             IdempotencyRecord,

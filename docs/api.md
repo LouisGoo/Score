@@ -1,10 +1,10 @@
 # API 接口文档
 
-更新时间：2026-10-13。当前交付批次：12（可靠关闭到期评分任务）。
+更新时间：2026-10-13。当前交付批次：13（按角色隔离的活动快照）。
 
 ## 1. 实现状态与文档分工
 
-**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委身份确认/会话兑换及凭证重置撤销。评分任务控制、幂等写分、本人回执与改分历史、收评、重开、冻结成绩公布、排名、结束和归档已实现；角色快照及实时接口尚未实现。**
+**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委会话及凭证重置撤销。评分任务控制、幂等写分、回执与改分历史、手动/自动收评、重开、成绩公布、排名、结束和归档已实现。管理/评委/大屏快照、大屏授权与展示设置已实现；实时接口尚未实现。**
 提交 02 的后端评分纯函数已由 10 接入写分校验；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
@@ -317,6 +317,28 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 独立 `python -m score_api.worker` 扫描已到期 OPEN 任务，复用手动收评事务。自动记录原因为“评分时间已到”，快照 `source=deadline`，审计 actor=null。暂停和不限时任务不参与扫描；worker 延迟或停机不延长提交截止时间。多实例竞争只冻结一次；失败不改变状态，下轮重试；重启按数据库截止时间恢复。暂不自动公布结果。
 
+### 角色快照、大屏授权与展示（13）
+
+所有快照要求活动已发布，草稿返回 409 `EVENT_NOT_PUBLISHED`。读快照持有活动锁，确保同一个版本下的进度、评分与结果一致，响应 `Cache-Control: no-store`，包含 `server_time`。路径明确区分角色，不能通过查询参数切换权限。
+
+| 方法与路径（省略 /api/v1） | 授权与响应 |
+| --- | --- |
+| GET /events/{id}/snapshot | 主办方 Cookie 且 owner；AdminSnapshot，含规则、名单、原始评分历史、全部收评快照、排名、展示设置与大屏授权元数据 |
+| GET /judge/events/{id}/snapshot | 评委 Cookie 且属于活动；JudgeSnapshot，含本人身份、冻结规则、任务进度、本人回执/改分历史、已公布成绩和排名 |
+| GET /screens/{grant_id}/snapshot | `Authorization: Bearer <token>`；ScreenSnapshot，仅安全活动信息、展示设置、当前对象进度、已公布成绩及受数量限制的排行榜 |
+| POST /events/{id}/screen-grants | owner + Origin/CSRF；JSON `ttl_seconds` 可省略（默认 86400，60～2592000），201 CreatedGrant；随机 token 仅当次返回 |
+| GET /events/{id}/screen-grants | owner；仅 ID、活动 ID、创建/到期/撤销时间，不返回 token 或摘要 |
+| DELETE /events/{id}/screen-grants/{grant_id} | owner + Origin/CSRF；204，重复撤销同一授权仍 204，其他活动的授权 404 |
+| PUT /events/{id}/screen | owner + Origin/CSRF；完整 ScreenSettings，返回 ScreenDisplay |
+
+评委响应不含他人的评分、回执、缺交评委明细或未公布汇总分。大屏不含个人评分、回执、评委名单或任何身份凭证；只有任务状态为 PUBLISHED 的成绩可输出。只读授权不能调用管理、评委、提交、结果历史接口。授权每次读取都在锁内核验摘要、撤销及到期时间；不接受 URL 查询参数中的 token，公开活动码也不能充当授权。数据库仅保存随机 256 位 token 的 SHA-256 摘要；客户端可在未来大屏页面的 fragment 中传递 token，读取后清除，调用 API 时使用请求头。最大同时有效授权 20 个，超出返回 `SCREEN_GRANT_LIMIT`。
+
+展示请求必填：`expected_version`（管理活动版本）、`mode`、`title`、`theme`（light/dark）、`show_public_qr`、`leaderboard_limit`；`round_id` 在 progress/paused/result 模式必填，其他模式必须为空。任务必须属于当前活动，并分别处于 OPEN/PAUSED/PUBLISHED；ended 要求活动已结束或归档，否则 409 `DISPLAY_STATE_CONFLICT`。展示字段不修改冻结规则和名单，结束后仍可切换已公布单项成绩。
+
+默认开评/恢复/重开切 progress，暂停切 paused，当前任务收评切 waiting，公布切 result，结束切 ended（最终榜单）。手动可切 waiting、progress、paused、result、leaderboard、ended。所有展示和授权变更与审计/outbox 同事务；审计及 outbox 不含 token。
+
+版本按活动管理员流、大屏流、每位评委个人流独立保存。首次交分推进所有角色的进度版本；改分只推进管理员及该评委版本，幂等重放不推进版本；任务状态、公布、结束推进全部角色。展示设置只推进管理员和大屏；授权创建/撤销只推进管理员。服务器时间变化不推进版本。客户端按 `(活动, 角色, 当前身份或授权)` 隔离版本和缓存，不能跨角色比较版本；退出、撤销或重新登录时清空个人缓存。此批只提供 HTTP 快照和持久化版本，WS/Redis/outbox 投递属于 18。
+
 ## 4. 后续接口清单（规划中）
 
 本表用于定位功能范围。暂不提前复制尚未实现的字段模型；正式实现后更新状态，并链接对应 OpenAPI operation 和本文业务说明。
@@ -324,8 +346,6 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 13 | POST /events/{id}/screen-grants | 创建大屏只读授权；活动拥有者 |
-| 13 | GET /events/{id}/snapshot | 角色专属状态快照；有效授权 |
 | 18 | POST /realtime/tickets | 兑换短时一次性连接票据；有效会话/展示授权，细节随实现明确 |
 | 18 | WS /api/v1/events/{id}/stream（完整路径） | 授权实时订阅；一次性票据 |
 | 20 | GET /events/{id}/exports/{kind} | 汇总/明细/审计 CSV；活动拥有者 |
