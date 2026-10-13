@@ -3,10 +3,12 @@
 from alembic import context
 
 from score_api.auth import models  # noqa: F401 -- 注册本批模型供 Alembic 比较
+from score_api.ballots import models as ballot_models  # noqa: F401 -- 评分模型
 from score_api.core.config import Settings
 from score_api.db import VERSION_TABLE, Base, create_db_engine
 from score_api.events import models as event_models  # noqa: F401 -- 注册活动模型
 from score_api.judge_sessions import models as judge_models  # noqa: F401 -- 注册评委会话模型
+from score_api.outbox import models as outbox_models  # noqa: F401 -- 事务事件
 from score_api.rounds import models as round_models  # noqa: F401 -- 注册任务模型
 
 

@@ -1,11 +1,11 @@
 # API 接口文档
 
-更新时间：2026-10-13。当前交付批次：09（评分任务控制）。
+更新时间：2026-10-13。当前交付批次：10（评分幂等提交与版本持久化）。
 
 ## 1. 实现状态与文档分工
 
-**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委身份确认/会话兑换及凭证重置撤销。评分任务开评/暂停/恢复/跳过已实现；评分写入、成绩及实时接口尚未实现。**
-提交 02 已提供后端评分纯函数，尚未接入 HTTP；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
+**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委身份确认/会话兑换及凭证重置撤销。评分任务开评/暂停/恢复/跳过、幂等写分、本人回执与改分历史已实现；成绩及实时接口尚未实现。**
+提交 02 的后端评分纯函数已由 10 接入写分校验；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
 | 文档 | 用途 |
@@ -188,7 +188,7 @@ const response = await fetch('/api/v1/auth/login', {
 - `GET /api/v1/events/{event_id}/publication`：仅拥有者，200 `PublicationInfo`。查询已持久化的规则/名单快照及任务，无凭证；草稿返回 404。用于发布响应丢失后的核验，不等于 13 的按角色状态快照。
 - `POST /api/v1/events/{event_id}/copy`：拥有者 + Origin/CSRF；任意活动状态均可复制，无请求体，201 EventInfo。复制配置及名单，所有内部 ID 重新生成，新活动为 DRAFT、version=0，无活动码/发布时间/凭证/会话/任务/评分/结果。
 
-发布要求至少一个对象、一位评委及完整规则；使用实际 N 校验算法最低人数与 K≤N，缺省 K 根据评分核心推导并固化。原始规则字段、维度、名单 ID/编号/姓名/对象顺序、过程设置写入 `score_event_snapshots`，每场只允许一份。每个对象建立一个任务，每个任务冻结全部应交评委；复合外键禁止跨活动关联，RESTRICT 保留历史。快照不含凭证状态、哈希或 HMAC。09 提供开评/暂停/恢复/跳过，评分提交待 10。
+发布要求至少一个对象、一位评委及完整规则；使用实际 N 校验算法最低人数与 K≤N，缺省 K 根据评分核心推导并固化。原始规则字段、维度、名单 ID/编号/姓名/对象顺序、过程设置写入 `score_event_snapshots`，每场只允许一份。每个对象建立一个任务，每个任务冻结全部应交评委；复合外键禁止跨活动关联，RESTRICT 保留历史。快照不含凭证状态、哈希或 HMAC。09 提供开评/暂停/恢复/跳过，10 提供评分提交与本人回执。
 
 补码慢哈希在事务外准备；提交时锁活动并重新读取规则/名单/凭证。发布状态、活动码、补码、快照、任务、应交名单及审计在同一事务提交；任何失败均回滚。准备期间新增未设码评委或新码冲突返回 409 `PUBLISH_CONFLICT`，核验后可重新发布；并发发布只有一个成功，另一请求 409 `EVENT_NOT_DRAFT`。校验不合格返回 422 `PUBLISH_INVALID`。活动码唯一碰撞最多重试 5 次，耗尽 503 `PUBLIC_CODE_BUSY`。权限及通用错误同草稿接口。
 
@@ -228,7 +228,7 @@ Cookie 分离为 `__Host-score_judge_bootstrap`（600 秒）和 `__Host-score_ju
 
 重置请求 `{"reason":"更换手机","code":"NEWCODE123"}`；省略 code 或 null 自动生成。reason 去空白后为 1～500 字。新码不能是本人当前码，也不能是同活动其他评委的码，分别返回 409 `CREDENTIAL_UNCHANGED` / `CREDENTIAL_CONFLICT`。成功时凭证版本 +1、撤销所有旧会话/未消费确认令牌、写入重置原因和版本审计、活动 version +1，在同一事务提交；评委 ID/姓名/编号、冻结规则/名单与历史归属保持不变。响应只返回当次新明文。草稿应使用 PUT credential，结束/归档不允许重置，返回 409 `RESET_NOT_ALLOWED`。
 
-FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前已获得的确认令牌）均返回 409 `EVENT_CLOSED`；已有有效会话 `/me` 返回 read_only=true。当前仅交付会话读接口，成绩查询在后续实现；结束/归档操作接口属 11。WebSocket 撤销通知属 18，但 HTTP 鉴权在重置提交后立即拒绝旧会话。
+FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前已获得的确认令牌）均返回 409 `EVENT_CLOSED`；已有有效会话 `/me` 返回 read_only=true。当前交付会话及本人评分回执读接口，活动成绩查询在后续实现；结束/归档操作接口属 11。WebSocket 撤销通知属 18，但 HTTP 鉴权在重置提交后立即拒绝旧会话。
 
 验证按来源（默认 600 次/300 秒，verify/exchange 共用）、活动（3000 次/300 秒）与活动内规范化码的 HMAC 摘要（10 次/300 秒）共享限流；失败和成功都计数，事务提交后才返回 429，重启/多进程不重置计数。同一会场共用 IP 不会把不同码当作同一身份；这不是容量验收结论。数据仅保存摘要、不保存尝试码或 IP 明文。scrypt 仍受每进程最多两次计算限制，503 AUTH_BUSY 按 Retry-After 等待。短期确认令牌每次成功验证最多清理 100 条已过期记录，正式会话与审计不自动删除。
 
@@ -250,9 +250,28 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 控制接口无幂等 key；超时先 GET 当前任务核验，不能盲目重复操作。版本冲突需刷新并重新确认；503 按 Retry-After 退避后先查询。收评、重开、成绩公布在 11，自动截止收评在 12；即使尚未自动关闭，截止后也不能暂停或提交新评分。
 
+### 评分提交与回执（提交 10，已实现）
+
+`PUT /api/v1/rounds/{id}/my-ballot`：有效评委 Cookie、可信 Origin、评委会话 CSRF，必须提供一个 `Idempotency-Key` UUID 请求头。首次提交和改分均返回 200 BallotReceipt，只有事务提交成功才返回。
+
+`GET /api/v1/rounds/{id}/my-ballot`：有效评委会话，只能查询本人；无 Idempotency-Key 时返回当前有效版本，携带该请求头时返回该次成功操作的原回执，包括后续已被改分替代的版本。没有有效评分返回 404 BALLOT_NOT_FOUND，没有该次操作回执返回 404 RECEIPT_NOT_FOUND。活动结束后已有有效会话仍可查询。
+
+请求示例和多维 87.00 回执见 5.3。BallotReceipt 同时包含 scores、rule_version、ballot_id、receipt_id、round_id、revision、total_score、accepted_at；原始分为十进制字符串。total_score 是个人百分制分数的两位小数展示值，不代表活动最终成绩。
+
+- 首次 expected_ballot_revision=0；改分用当前 revision 和新 UUID。规则冻结时 allow_revisions=false 则禁止改分。不同评委可各自使用相同 UUID；同一评委的 UUID 跨任务唯一，换任务复用会发生幂等冲突。
+- 请求摘要包括明确 round_id、rule_version、expected_ballot_revision 和所有维度。忽略维度顺序与等值十进制文本差别（90、90.0 相同），重复维度仍被拒绝。相同 key 不同请求返回 409 IDEMPOTENCY_CONFLICT；同 key 同内容始终返回原回执，之后的改分不覆盖它。
+- 先验证会话、活动归属和冻结应交资格，再锁内查询幂等记录；命中成功记录时不再检查任务截止/开放状态，因此暂停、收评、结束后仍可核验。已撤销或过期会话不能借此取得回执，凭证重置后用新会话可继续查询本人历史。
+- 新提交/改分只接受 OPEN 且锁内 server_now < deadline_at（null 为不限时）。活动结束只读，不能将旧任务请求写入新任务。完整维度、范围、步长、规则版本和评分版本均检查。
+- 统一活动 → 评委/会话 → 任务锁；任务锁等待后重新读取时间并检查会话到期。收评/暂停/提交共用任务锁，所有事务 READ COMMITTED。成功写入一张逻辑评分单、追加版本、永久幂等回执、评委审计及内部 outbox；任一失败全部回滚。已交数按逻辑评分单数计算，改分不增加人数。
+- 原始 scores 保存在 JSON 十进制字符串中；computed_total 为 DECIMAL(65,30) 查询缓存，display_total 为从评分核心结果直接 ROUND_HALF_UP 的 DECIMAL(5,2)。后续成绩汇总必须从冻结规则及原始分重算，不使用上述缓存或展示分替代。历史版本无覆盖或删除接口。
+- 死锁 1213 或锁等待超时 1205 最多尝试 3 次，每次完整回滚并释放连接后短暂随机退避，沿用原 key、重新检查时钟/权限。耗尽返回 503 SERVICE_UNAVAILABLE / Retry-After: 3。连接中断和提交结果不明不在服务内自动重试，调用方使用原 key 核验；不会显示假成功。
+- outbox 本批只持久化、暂不投递；包含内部事件版本及任务/评委/评分版本/已交数，不包含原始分或凭证。18 再按各角色授权转换为独立流序列，不能将内部版本直接用作大屏或评委流版本。
+
+错误：401 SESSION_EXPIRED；403 FORBIDDEN（不属应交名单）；404 NOT_FOUND（跨活动/不存在任务）；409 ROUND_NOT_OPEN、DEADLINE_EXCEEDED、EVENT_NOT_RUNNING、RULE_VERSION_MISMATCH、REVISION_CONFLICT、REVISIONS_DISABLED、IDEMPOTENCY_CONFLICT；422 SCORE_INVALID（维度/范围/步长）、VALIDATION_ERROR（请求结构/UUID/非字符串分数等）。Origin/CSRF 及服务错误沿用第 6 节。不能仅凭 404 回执断言正在处理的请求最终不会提交，继续复用同一 key 核验。
+
 ## 3. 通用业务约定（实现边界见第 1、2 节）
 
-主办方/评委认证、凭证、发布/复制、请求来源、草稿权限/编号及通用错误已实现；评分控制已实现；幂等写分、大屏及实时约定仍待后续提交。
+主办方/评委认证、凭证、发布/复制、请求来源、草稿权限/编号及通用错误已实现；评分控制、幂等写分已实现；大屏及实时约定仍待后续提交。
 
 | 项目 | 约定 |
 | --- | --- |
@@ -280,7 +299,6 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 10 | PUT /rounds/{id}/my-ballot、GET /rounds/{id}/my-ballot | 提交/改分、查询本人有效评分及回执；对应评委 |
 | 11 | POST /rounds/{id}/close、POST /rounds/{id}/reopen | 收评、重开补评；活动拥有者 |
 | 11 | POST /rounds/{id}/publish-result、POST /rounds/{id}/no-result | 公布、标记无结果；活动拥有者 |
 | 11 | POST /events/{id}/finish、POST /events/{id}/archive | 结束、归档；活动拥有者 |
@@ -291,7 +309,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 | 18 | WS /api/v1/events/{id}/stream（完整路径） | 授权实时订阅；一次性票据 |
 | 20 | GET /events/{id}/exports/{kind} | 汇总/明细/审计 CSV；活动拥有者 |
 
-## 5. 关键业务流程（评分控制及后续部分规划中）
+## 5. 关键业务流程（收评与结果部分规划中）
 
 ### 5.1 主持人流程与状态限制
 
@@ -315,7 +333,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 ### 5.3 提交、改分与超时核验
 
-以下为需求稿中的示例，接口尚不可调用；ID 为占位值。
+以下提交接口已实现；示例 ID 为占位值，需替换为实际任务和回执。
 
 `PUT /api/v1/rounds/{id}/my-ballot`
 
@@ -334,13 +352,19 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 ```
 
 在满分分别为 100、10、20，权重分别为 50%、30%、20% 的规则下，个人总分为 87.00。
-预期回执内容示例（成功 HTTP 状态码随实现明确）：
+回执内容示例（成功 HTTP 200；字段需与实际提交一致）：
 
 ```json
 {
   "ballot_id": "ballot_example",
   "receipt_id": "receipt_example",
   "revision": 1,
+  "rule_version": 1,
+  "scores": [
+    { "criterion_id": "content", "value": "90" },
+    { "criterion_id": "innovation", "value": "18" },
+    { "criterion_id": "performance", "value": "8" }
+  ],
   "total_score": "87.00",
   "accepted_at": "2026-10-10T06:03:21.123Z",
   "round_id": "round_example"
@@ -377,7 +401,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 登录/退出无幂等 key。登录响应丢失时先用 `/auth/me` 检查浏览器会话，必要时重新登录；不自动反复提交密码。退出响应丢失后查询 `/auth/me`，401 表示会话已失效；已失效会话再次退出返回 401。认证写入与其审计同事务，提交后才返回成功与设置/删除 Cookie。
 
-以下业务错误码仍为后续提交规划：
+以下评分业务错误码已在 10 实现；INSUFFICIENT_BALLOTS 随 11 实现：
 
 | 错误码 | 含义 | 客户端处理方向 |
 | --- | --- | --- |
@@ -391,7 +415,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 | INSUFFICIENT_BALLOTS | 未达最低有效份数 | 主持人选择补评或无结果 |
 | IDEMPOTENCY_CONFLICT | 相同 key 对应不同内容 | 停止自动重试，核验原操作 |
 
-以上并非完整业务错误目录。控制操作版本冲突等错误将在对应业务实现时明确，不能推断复用上述某个码。
+以上并非完整业务错误目录；任务控制和评分的新增错误及重试语义见第 2 节。
 
 ## 7. 实时订阅与恢复（规划中）
 

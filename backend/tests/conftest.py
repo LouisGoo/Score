@@ -13,12 +13,14 @@ from sqlalchemy import delete, select
 from sqlalchemy.engine import make_url
 
 from score_api.auth.models import Admin, AdminSession
+from score_api.ballots.models import Ballot, BallotAudit, BallotRevision, IdempotencyRecord
 from score_api.core.config import Settings
 from score_api.core.security import session_csrf, token_hash
 from score_api.db import Database, utc_now
 from score_api.events.models import Entry, Event, EventAudit, EventJudge, EventSnapshot
 from score_api.judge_sessions.models import JudgeAuthAudit, JudgeConfirmation, JudgeSession
 from score_api.main import create_app
+from score_api.outbox.models import OutboxEvent
 from score_api.rounds.models import RoundJudge, ScoringRound
 
 ORIGIN = "https://score.test"
@@ -53,6 +55,11 @@ def event_db(database, mysql_settings, monkeypatch):
     with database.transaction() as session:
         event_ids = select(Event.id).where(Event.owner_id.in_(ids))
         for model in (
+            OutboxEvent,
+            BallotAudit,
+            IdempotencyRecord,
+            BallotRevision,
+            Ballot,
             JudgeAuthAudit,
             JudgeConfirmation,
             JudgeSession,
@@ -96,3 +103,40 @@ def clients(event_db, mysql_settings):
         yield first, second
         for client in (first, second):
             assert client.app.state.database.engine.pool.checkedout() == 0
+
+
+@pytest.fixture
+def rounds_event(clients):
+    owner, _ = clients
+    event = owner.post(
+        "/api/v1/events",
+        json={
+            "title": "任务评分验收",
+            "duration_seconds": 60,
+            "scoring_rule": {"criteria": [{"criterion_id": "total", "name": "总分"}]},
+        },
+    ).json()
+    url = f"/api/v1/events/{event['id']}"
+    for number in ("001", "002"):
+        assert (
+            owner.post(url + "/entries", json={"number": number, "name": number}).status_code == 201
+        )
+        assert (
+            owner.post(url + "/judges", json={"number": number, "name": number}).status_code == 201
+        )
+    published = owner.post(url + "/publish")
+    assert published.status_code == 200, published.text
+    return published.json()
+
+
+@pytest.fixture
+def mobiles(clients):
+    settings = clients[0].app.state.settings
+    with (
+        TestClient(create_app(settings.model_copy()), base_url=ORIGIN) as first,
+        TestClient(create_app(settings.model_copy()), base_url=ORIGIN) as second,
+    ):
+        for client in (first, second):
+            token = client.get("/api/v1/judge-sessions/csrf").json()["csrf_token"]
+            client.headers.update({"Origin": ORIGIN, "X-CSRF-Token": token})
+        yield first, second

@@ -72,5 +72,6 @@
 - 06：已提交（`b4f4e04`），209 项后端测试通过，见 [Review 06](review-06.md)。
 - 07：已提交（`1603bcd`），221 项后端测试通过，见 [Review 07](review-07.md)。
 - 08：已完成并自行验收提交，全量后端 243 passed，前端类型/构建、迁移、Ruff 检查通过，见 [Review 08](review-08.md)。
-- 09：已完成自行验收，后端 251 passed，前端构建通过，远端补齐至 0009_round_controls，见 [Review 09](review-09.md)。
-- 10～24：待开发。
+- 09：已提交（`af74d45`），后端 251 passed，前端构建通过，远端补齐至 0009_round_controls，见 [Review 09](review-09.md)。
+- 10：已完成自行验收提交；完整后端 287 passed，前端构建/迁移/Ruff 通过，远端已升级至 0010_ballots，Alembic check 无差异、ready=200，见 [Review 10](review-10.md)。
+- 11～24：待开发。

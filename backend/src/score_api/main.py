@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 
 from score_api.auth.router import router as auth_router
+from score_api.ballots.router import router as ballots_router
 from score_api.core.config import Settings
 from score_api.core.errors import install_error_handlers
 from score_api.credentials.router import router as credentials_router
@@ -48,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(credentials_router)
     app.include_router(judge_sessions_router)
     app.include_router(rounds_router)
+    app.include_router(ballots_router)
 
     @app.get("/api/v1/health/live", response_model=Liveness, tags=["health"])
     def liveness() -> Liveness:

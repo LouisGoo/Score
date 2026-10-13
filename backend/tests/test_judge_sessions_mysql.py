@@ -7,7 +7,6 @@ from threading import Event as ThreadEvent
 from uuid import uuid4
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import event as sa_event
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -21,7 +20,6 @@ from score_api.events.models import Event, EventAudit, EventJudge
 from score_api.judge_sessions import service
 from score_api.judge_sessions.models import JudgeAuthAudit, JudgeConfirmation, JudgeSession
 from score_api.judge_sessions.schemas import ExchangeInput
-from score_api.main import create_app
 
 pytestmark = pytest.mark.mysql
 ORIGIN = "https://score.test"
@@ -51,19 +49,6 @@ def published(clients):
     response = owner.post(url + "/publish")
     assert response.status_code == 200, response.text
     return response.json(), url, judges
-
-
-@pytest.fixture
-def mobiles(clients):
-    settings = clients[0].app.state.settings
-    with (
-        TestClient(create_app(settings.model_copy()), base_url=ORIGIN) as first,
-        TestClient(create_app(settings.model_copy()), base_url=ORIGIN) as second,
-    ):
-        for client in (first, second):
-            token = client.get(BASE + "/csrf").json()["csrf_token"]
-            client.headers.update({"Origin": ORIGIN, "X-CSRF-Token": token})
-        yield first, second
 
 
 def verify(client, published, code="FIRST123"):

@@ -21,30 +21,6 @@ pytestmark = pytest.mark.mysql
 NOW = utc_now()
 
 
-@pytest.fixture
-def rounds_event(clients):
-    owner, _ = clients
-    event = owner.post(
-        "/api/v1/events",
-        json={
-            "title": "任务评分验收",
-            "duration_seconds": 60,
-            "scoring_rule": {"criteria": [{"criterion_id": "total", "name": "总分"}]},
-        },
-    ).json()
-    url = f"/api/v1/events/{event['id']}"
-    for number in ("001", "002"):
-        assert (
-            owner.post(url + "/entries", json={"number": number, "name": number}).status_code == 201
-        )
-        assert (
-            owner.post(url + "/judges", json={"number": number, "name": number}).status_code == 201
-        )
-    published = owner.post(url + "/publish")
-    assert published.status_code == 200, published.text
-    return published.json()
-
-
 def control(client, row, action, version=1, **extra):
     return client.post(
         f"/api/v1/rounds/{row['id']}/{action}",
