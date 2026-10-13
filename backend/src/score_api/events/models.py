@@ -100,7 +100,7 @@ class EventAudit(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     event_id: Mapped[str] = mapped_column(String(32))
-    actor_id: Mapped[str] = mapped_column(ForeignKey("score_admins.id"))
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("score_admins.id"))
     action: Mapped[str] = mapped_column(String(32))
     target_id: Mapped[str] = mapped_column(String(32))
     before: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))

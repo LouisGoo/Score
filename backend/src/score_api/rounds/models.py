@@ -44,6 +44,7 @@ class ScoringRound(Base):
     status: Mapped[str] = mapped_column(String(16), default="PENDING")
     version: Mapped[int] = mapped_column(default=1)
     deadline_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     remaining_seconds: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
     active_event_id: Mapped[str | None] = mapped_column(
         String(32),

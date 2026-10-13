@@ -21,6 +21,7 @@ from score_api.events.models import Entry, Event, EventAudit, EventJudge, EventS
 from score_api.judge_sessions.models import JudgeAuthAudit, JudgeConfirmation, JudgeSession
 from score_api.main import create_app
 from score_api.outbox.models import OutboxEvent
+from score_api.results.models import ResultSnapshot
 from score_api.rounds.models import RoundJudge, ScoringRound
 
 ORIGIN = "https://score.test"
@@ -56,6 +57,7 @@ def event_db(database, mysql_settings, monkeypatch):
         event_ids = select(Event.id).where(Event.owner_id.in_(ids))
         for model in (
             OutboxEvent,
+            ResultSnapshot,
             BallotAudit,
             IdempotencyRecord,
             BallotRevision,
@@ -70,7 +72,11 @@ def event_db(database, mysql_settings, monkeypatch):
             EventJudge,
         ):
             session.execute(delete(model).where(model.event_id.in_(event_ids)))
-        session.execute(delete(EventAudit).where(EventAudit.actor_id.in_(ids)))
+        session.execute(
+            delete(EventAudit).where(
+                EventAudit.actor_id.in_(ids) | EventAudit.event_id.in_(event_ids)
+            )
+        )
         session.execute(delete(Event).where(Event.owner_id.in_(ids)))
         session.execute(delete(AdminSession).where(AdminSession.admin_id.in_(ids)))
         session.execute(delete(Admin).where(Admin.id.in_(ids)))

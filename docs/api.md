@@ -1,10 +1,10 @@
 # API 接口文档
 
-更新时间：2026-10-13。当前交付批次：10（评分幂等提交与版本持久化）。
+更新时间：2026-10-13。当前交付批次：11（收评与冻结成绩公布）。
 
 ## 1. 实现状态与文档分工
 
-**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委身份确认/会话兑换及凭证重置撤销。评分任务开评/暂停/恢复/跳过、幂等写分、本人回执与改分历史已实现；成绩及实时接口尚未实现。**
+**当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委身份确认/会话兑换及凭证重置撤销。评分任务控制、幂等写分、本人回执与改分历史、收评、重开、冻结成绩公布、排名、结束和归档已实现；角色快照及实时接口尚未实现。**
 提交 02 的后端评分纯函数已由 10 接入写分校验；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
@@ -292,6 +292,27 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 主办方/评委 Cookie、有效期、CSRF、分页与错误包装见第 2、6 节。
 活动码仅用于定位活动，不能直接获得评分权限。身份码、会话凭证不进入普通查询响应、日志和公共二维码。
 
+### 收评、冻结结果与活动结束（11）
+
+以下接口均要求主办方会话及活动 owner；写请求要求可信 Origin 和会话 CSRF。
+
+| 方法与路径（省略 /api/v1） | 请求与响应 |
+| --- | --- |
+| POST /rounds/{id}/close | `expected_version`、可选 `reason`；OPEN/PAUSED → CLOSED，返回 RoundState |
+| POST /rounds/{id}/reopen | `expected_version`、必填原因、必填 `duration_seconds`（1～86400 或 null 不限时）；CLOSED → OPEN |
+| POST /rounds/{id}/publish-result | `expected_version`；CLOSED 且达到 K → PUBLISHED |
+| POST /rounds/{id}/no-result | `expected_version`、必填原因；CLOSED 且未形成成绩 → NO_RESULT |
+| GET /rounds/{id}/results | 全部历次不可变收评快照，含规则版本、有效评分回执/版本、原始分、高精度个人总分、剔除标记、缺交 ID、最终分及收评原因 |
+| GET /events/{id}/ranking | 仅已公布成绩，按两位小数采用 1、2、2、4 并列名次 |
+| POST /events/{id}/finish | 活动 `expected_version`；全部任务已公布/跳过/无结果后结束 |
+| POST /events/{id}/archive | 活动 `expected_version`；仅 FINISHED 可归档，数据保留 |
+
+收评与提交均先锁活动后锁任务，再读取有效评分。未收齐时未填原因返回 422 `CLOSE_REASON_REQUIRED`；缺交不补零。n<K 可以收评，公布返回 409 `INSUFFICIENT_BALLOTS`。无结果、跳过、公布均为终态。已有 OPEN/PAUSED 任务时不能重开另一任务。重开保留评分、旧快照和原幂等回执，新截止时间从锁内服务端时间计算；是否允许改分继续遵循冻结规则。
+
+成绩直接从冻结规则与原始分复算，不使用舍入后的个人总分缓存。每次收评新增快照；公布只冻结最新一份，不改写历史。成功回执在截止、收评、公布、结束及归档后仍可用原 key 复查（要求有效本人会话）；新提交被拒绝。
+
+版本落后返回 409 `VERSION_CONFLICT`，状态不合法返回 `ROUND_STATE_CONFLICT` / `EVENT_STATE_CONFLICT`，提前结束返回 `UNFINISHED_ROUNDS`，消息列出待处理任务 ID。网络超时先读取状态及结果，再决定操作，不能自动套用新版本重发。结果、状态、审计和 outbox 在同一事务提交；数据库故障返回 503，失败不保留半成品。其他管理员得到 404，评委和大屏无权访问上述管理接口。
+
 ## 4. 后续接口清单（规划中）
 
 本表用于定位功能范围。暂不提前复制尚未实现的字段模型；正式实现后更新状态，并链接对应 OpenAPI operation 和本文业务说明。
@@ -299,17 +320,13 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 | 提交 | 方法与路径（省略 /api/v1） | 用途及权限 |
 | --- | --- | --- |
-| 11 | POST /rounds/{id}/close、POST /rounds/{id}/reopen | 收评、重开补评；活动拥有者 |
-| 11 | POST /rounds/{id}/publish-result、POST /rounds/{id}/no-result | 公布、标记无结果；活动拥有者 |
-| 11 | POST /events/{id}/finish、POST /events/{id}/archive | 结束、归档；活动拥有者 |
-| 11、13 | GET /events/{id}/results | 结果查询；按角色裁剪，非管理员只见已公布成绩 |
 | 13 | POST /events/{id}/screen-grants | 创建大屏只读授权；活动拥有者 |
 | 13 | GET /events/{id}/snapshot | 角色专属状态快照；有效授权 |
 | 18 | POST /realtime/tickets | 兑换短时一次性连接票据；有效会话/展示授权，细节随实现明确 |
 | 18 | WS /api/v1/events/{id}/stream（完整路径） | 授权实时订阅；一次性票据 |
 | 20 | GET /events/{id}/exports/{kind} | 汇总/明细/审计 CSV；活动拥有者 |
 
-## 5. 关键业务流程（收评与结果部分规划中）
+## 5. 关键业务流程
 
 ### 5.1 主持人流程与状态限制
 

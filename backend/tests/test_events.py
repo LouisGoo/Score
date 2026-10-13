@@ -104,4 +104,4 @@ def test_all_event_routes_require_authentication_and_document_errors():
                 url = url.replace("{judge_id}", "judge")
                 response = client.request(method, url, headers={"Origin": "http://localhost:5173"})
                 assert response.status_code == 401
-        assert operations == 20
+        assert operations == 23
