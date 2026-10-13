@@ -75,4 +75,5 @@
 - 09：已提交（`af74d45`），后端 251 passed，前端构建通过，远端补齐至 0009_round_controls，见 [Review 09](review-09.md)。
 - 10：已完成自行验收提交；完整后端 287 passed，前端构建/迁移/Ruff 通过，远端已升级至 0010_ballots，Alembic check 无差异、ready=200，见 [Review 10](review-10.md)。
 - 11：已完成并自行验收，本地共 296 项后端测试通过（完整首轮及定向复验），前端构建通过，远端升级至 0011_results，见 [Review 11](review-11.md)。
-- 12～24：待开发。
+- 12：已完成并自行验收，worker/收评相关 14 passed；复用 0011_results，无新增迁移，远端 worker 单批运行及 Alembic check 通过，见 [Review 12](review-12.md)。
+- 13～24：待开发。
