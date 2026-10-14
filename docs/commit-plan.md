@@ -82,4 +82,5 @@
 - 13：已完成并自行验收提交；11～13 最终全量后端 **312 passed**，前端构建、Ruff、迁移往返及 Alembic check 通过。远端已升级至 **0013_snapshots**，ready=200，既有记录保留，见 [Review 13](review-13.md)。
 - 13a：已提交（`da44fe6`）；快照改为无锁一致性读，修复 18 之前轮询快照与评分提交争用活动锁的问题，见 [Review 13a](review-13a.md)。前端评估与约定见 [前端开发计划](frontend-plan.md)。
 - 14a：已完成待 review；Ant Design、路由懒加载、三身份 API 客户端、错误表、类型生成与契约测试、工具函数、Vitest/Oxlint/CI，前端 50 项测试通过，见 [Review 14a](review-14a.md)。
-- 14b～24：待开发。
+- 14b 后端：G2 活动列表汇总、G3 发布预检已完成待用户 review，保留未提交变更；范围及验证见 [Review 14b 后端](review-14b-backend.md)。本轮仅授权后端缺口开发，14b 业务页面仍待开发。
+- 15～24：待开发。

@@ -9,13 +9,14 @@ from score_api.auth.service import Principal
 from score_api.core.errors import ErrorResponse
 from score_api.events import publication, service
 from score_api.events.models import Entry, EventJudge
-from score_api.events.publication_schemas import PublicationInfo, PublishResult
+from score_api.events.publication_schemas import PublicationInfo, PublishCheck, PublishResult
 from score_api.events.schemas import (
     EntryCreate,
     EntryInfo,
     EntryPatch,
     EventCreate,
     EventInfo,
+    EventListItem,
     EventPatch,
     JudgeCreate,
     JudgeInfo,
@@ -30,6 +31,11 @@ router = APIRouter(
 Admin = Annotated[Principal, Depends(require_admin)]
 Limit = Annotated[int, Query(ge=1, le=100)]
 Offset = Annotated[int, Query(ge=0, le=1000000)]
+
+
+@router.get("/{event_id}/publish-check", response_model=PublishCheck)
+def check_publication(event_id: str, request: Request, principal: Admin):
+    return publication.check_publication(database_for(request), principal.admin.id, event_id)
 
 
 @router.post("/{event_id}/publish", response_model=PublishResult)
@@ -71,7 +77,7 @@ def create_event(body: EventCreate, request: Request, principal: Admin):
     )
 
 
-@router.get("", response_model=list[EventInfo])
+@router.get("", response_model=list[EventListItem])
 def list_events(request: Request, principal: Admin, offset: Offset = 0, limit: Limit = 100):
     return service.list_events(database_for(request), principal.admin.id, offset, limit)
 

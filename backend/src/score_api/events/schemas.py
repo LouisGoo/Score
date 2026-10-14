@@ -114,6 +114,13 @@ class EventInfo(EventCreate):
     updated_at: datetime
 
 
+class EventListItem(EventInfo):
+    entry_count: int = Field(ge=0)
+    judge_count: int = Field(ge=0)
+    round_count: int = Field(ge=0)
+    finished_round_count: int = Field(ge=0)
+
+
 class EntryCreate(InputModel):
     number: Number
     name: Title

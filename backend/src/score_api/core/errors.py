@@ -8,9 +8,16 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 
 
+class ValidationIssue(BaseModel):
+    code: str
+    message: str
+    field: str
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str
+    issues: list[ValidationIssue] | None = None
 
 
 class ErrorResponse(BaseModel):
@@ -19,9 +26,18 @@ class ErrorResponse(BaseModel):
 
 
 class APIError(Exception):
-    def __init__(self, status: int, code: str, message: str, retry_after: int | None = None):
+    def __init__(
+        self,
+        status: int,
+        code: str,
+        message: str,
+        retry_after: int | None = None,
+        *,
+        issues: list[ValidationIssue] | None = None,
+    ):
         self.status, self.code, self.message = status, code, message
         self.retry_after = retry_after
+        self.issues = issues
 
 
 def error_response(request: Request, error: APIError) -> JSONResponse:
@@ -29,9 +45,12 @@ def error_response(request: Request, error: APIError) -> JSONResponse:
     headers = {"X-Request-ID": request_id, "Cache-Control": "no-store"}
     if error.retry_after is not None:
         headers["Retry-After"] = str(error.retry_after)
+    detail = {"code": error.code, "message": error.message}
+    if error.issues is not None:
+        detail["issues"] = [issue.model_dump() for issue in error.issues]
     return JSONResponse(
         status_code=error.status,
-        content={"error": {"code": error.code, "message": error.message}, "request_id": request_id},
+        content={"error": detail, "request_id": request_id},
         headers=headers,
     )
 

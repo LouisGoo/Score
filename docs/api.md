@@ -1,6 +1,6 @@
 # API 接口文档
 
-更新时间：2026-10-13。当前交付批次：13（按角色隔离的活动快照）。
+更新时间：2026-10-14。当前新增：14b 后端缺口（活动列表汇总、发布预检），待用户 review。
 
 ## 1. 实现状态与文档分工
 
@@ -125,7 +125,7 @@ const response = await fetch('/api/v1/auth/login', {
 | 方法与路径 | 成功结果 | 限制 |
 | --- | --- | --- |
 | POST /events | 201，EventInfo | 服务端指定 owner 和 DRAFT 状态 |
-| GET /events | 200，EventInfo 数组 | 仅本人活动，按 created_at、id 倒序 |
+| GET /events | 200，EventListItem 数组 | 仅本人活动，按 created_at、id 倒序；含名单与任务计数 |
 | GET /events/{event_id} | 200，EventInfo | 仅拥有者 |
 | PATCH /events/{event_id} | 200，EventInfo | 仅本人草稿；仅修改传入字段 |
 | DELETE /events/{event_id} | 204 | 仅本人草稿；同事务删除名单，保留审计 |
@@ -141,6 +141,8 @@ const response = await fetch('/api/v1/auth/login', {
 | DELETE /events/{event_id}/judges/{judge_id} | 204 | 仅本人草稿 |
 
 三个列表均支持 `offset=0`、`limit=100`，limit 为 1～100，offset 为 0～1000000。返回当前页数组；并发增删期间分页不保证快照一致性。
+
+14b 后端新增 `EventListItem`，保留全部 `EventInfo` 字段，并增加 `entry_count`（对象数）、`judge_count`（评委数）、`round_count`（任务总数）、`finished_round_count`（终态任务数）。终态仅包含 PUBLISHED、SKIPPED、NO_RESULT；CLOSED 仍待公布/补评/无结果处理，不计完成。草稿和复制出的草稿任务数均为 0；空名单计数为 0。列表业务读取只执行一条 SQL，以各表独立计数避免联表重复计数，活动与计数来自同一语句的读视图；不持活动行锁。单活动详情、创建、修改、复制及发布响应仍使用 `EventInfo`，不附加汇总字段。
 
 创建示例：`POST /api/v1/events`
 
@@ -184,15 +186,52 @@ const response = await fetch('/api/v1/auth/login', {
 
 ### 活动发布与复制（提交 07，已实现）
 
+- `GET /api/v1/events/{event_id}/publish-check`（14b 后端新增）：有效主办方会话且为活动拥有者；无请求体、无需 CSRF。仅草稿可检查，200 `PublishCheck`；业务问题通过 `can_publish=false` 与 `issues` 返回。
 - `POST /api/v1/events/{event_id}/publish`：拥有者 + Origin/CSRF；无请求体。成功 200 `PublishResult`，包含 EventInfo、不可变 snapshot、各对象的 PENDING 任务和 **仅本次补齐** 的 generated_credentials。已有手动或自动码不回显、不覆盖。公开活动码为 12 位随机字母数字，仅定位活动。EventInfo 新增 public_code、published_at、version（草稿 0、发布 1）。
 - `GET /api/v1/events/{event_id}/publication`：仅拥有者，200 `PublicationInfo`。查询已持久化的规则/名单快照及任务，无凭证；草稿返回 404。用于发布响应丢失后的核验，不等于 13 的按角色状态快照。
 - `POST /api/v1/events/{event_id}/copy`：拥有者 + Origin/CSRF；任意活动状态均可复制，无请求体，201 EventInfo。复制配置及名单，所有内部 ID 重新生成，新活动为 DRAFT、version=0，无活动码/发布时间/凭证/会话/任务/评分/结果。
 
 发布要求至少一个对象、一位评委及完整规则；使用实际 N 校验算法最低人数与 K≤N，缺省 K 根据评分核心推导并固化。原始规则字段、维度、名单 ID/编号/姓名/对象顺序、过程设置写入 `score_event_snapshots`，每场只允许一份。每个对象建立一个任务，每个任务冻结全部应交评委；复合外键禁止跨活动关联，RESTRICT 保留历史。快照不含凭证状态、哈希或 HMAC。09 提供开评/暂停/恢复/跳过，10 提供评分提交与本人回执。
 
-补码慢哈希在事务外准备；提交时锁活动并重新读取规则/名单/凭证。发布状态、活动码、补码、快照、任务、应交名单及审计在同一事务提交；任何失败均回滚。准备期间新增未设码评委或新码冲突返回 409 `PUBLISH_CONFLICT`，核验后可重新发布；并发发布只有一个成功，另一请求 409 `EVENT_NOT_DRAFT`。校验不合格返回 422 `PUBLISH_INVALID`。活动码唯一碰撞最多重试 5 次，耗尽 503 `PUBLIC_CODE_BUSY`。权限及通用错误同草稿接口。
+补码慢哈希在事务外准备；提交时锁活动并重新读取规则/名单/凭证。发布状态、活动码、补码、快照、任务、应交名单及审计在同一事务提交；任何失败均回滚。准备期间新增未设码评委或新码冲突返回 409 `PUBLISH_CONFLICT`，核验后可重新发布；并发发布只有一个成功，另一请求 409 `EVENT_NOT_DRAFT`。校验不合格返回 422 `PUBLISH_INVALID`，14b 起附 `error.issues`，与预检共用同一校验逻辑。活动码唯一碰撞最多重试 5 次，耗尽 503 `PUBLIC_CODE_BUSY`。权限及通用错误同草稿接口。
 
 发布后所有草稿编辑及名单增删改被拒绝；展示设置编辑仍留后续。重复发布不重新返回明文。发布超时先 GET publication；成功时即视为发布完成，若补码明文丢失只能由 08 重置后分发。复制没有幂等键，超时先核验活动列表，不能自动重复复制。所有响应禁止缓存。
+
+#### 发布预检（14b 后端）
+
+响应例子：
+
+```json
+{
+  "can_publish": false,
+  "issues": [{"code": "MINIMUM_BALLOTS_EXCEEDS_JUDGES", "message": "最低有效份数不能超过评委人数", "field": "scoring_rule.minimum_ballots"}],
+  "entry_count": 2,
+  "judge_count": 3,
+  "missing_credential_count": 2,
+  "minimum_ballots": null
+}
+```
+
+`minimum_ballots` 为依据实际评委人数 N 校验后的 K；未显式指定时复用评分核心推导：平均法 `max(1, ceil(0.8N))`，去极值平均法 `max(5, ceil(0.8N))`。规则或人数不满足条件时为 null；仅缺对象不影响合法 K 的显示。`missing_credential_count` 只表示发布时需补码的人数，不是阻塞问题。预检不生成明文、不计算凭证哈希、不修改数据或审计；活动/规则/名单在 REPEATABLE READ 同一读视图内无锁读取。
+
+每条问题包含稳定 `code`、中文 `message` 和点分隔定位 `field`（数组索引从 0 开始，如 `scoring_rule.criteria.0.step`）。问题码不属于顶层 HTTP 错误码：
+
+| code | 定位字段 | 含义 |
+| --- | --- | --- |
+| ENTRIES_REQUIRED | entries | 至少一个对象 |
+| JUDGES_REQUIRED | judges | 至少一位评委 |
+| SCORING_RULE_REQUIRED | scoring_rule | 尚未配置规则 |
+| TRIMMED_MEAN_JUDGES_REQUIRED | scoring_rule.algorithm | 去极值需要至少 5 位评委 |
+| MINIMUM_BALLOTS_EXCEEDS_JUDGES | scoring_rule.minimum_ballots | K>N |
+| MINIMUM_BALLOTS_BELOW_FLOOR | scoring_rule.minimum_ballots | K 低于算法下限 |
+| WEIGHTS_SUM_INVALID | scoring_rule.criteria | 权重合计不为 1 |
+| RULE_INVALID | scoring_rule 或具体子字段 | 其他格式、模式、维度、满分或步长问题 |
+
+草稿写入原有规则校验保持不变：非法权重等通常已在创建/修改时以 422 `VALIDATION_ERROR` 被拒绝；预检仍校验已存储规则。问题列表可同时报告缺对象、缺评委及规则问题，规则内部按现有核心校验顺序报告，不承诺穷举所有错误；不回显非法输入值或异常正文。
+
+预检未登录返回 401 `SESSION_EXPIRED`，无权/不存在返回 404 `NOT_FOUND`，非草稿返回 409 `EVENT_NOT_DRAFT`，数据库故障返回 503 `SERVICE_UNAVAILABLE`（`Retry-After: 3`）。响应 `Cache-Control: no-store`；这是只读请求，可按退避策略重试。
+
+`can_publish=true` 表示当前业务配置通过，不预留名单、锁或凭证，不保证稍后的发布成功；实际发布在准备前和活动锁内均重新校验。密钥配置、凭证生成等运行条件仍由发布接口检查。POST 校验失败时保留 `{error:{code,message},request_id}` 包装并附 `error.issues`；其他错误不额外返回此字段。前端发布失败后可重新 GET 预检展示最新问题；14a 的 `ApiError` 当前仅解析顶层 code/message，直接展示 POST 问题列表时需在页面批次扩展解析。
 
 ### 评委预览、会话与重置（提交 08，已实现）
 

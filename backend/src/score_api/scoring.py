@@ -18,6 +18,10 @@ HUNDRED = Decimal("100")
 class ScoringError(ValueError):
     """评分配置或输入不合法；独立于后续 HTTP 层的错误响应。"""
 
+    def __init__(self, message: str, *, code: str = "RULE_INVALID", field: str = ""):
+        super().__init__(message)
+        self.code, self.field = code, field
+
 
 class Algorithm(str, Enum):
     MEAN = "mean"
@@ -89,7 +93,11 @@ def default_minimum_ballots(expected_count: int, algorithm: Algorithm = Algorith
         raise ScoringError("unknown aggregation algorithm") from exc
     minimum = max(5 if algorithm == Algorithm.TRIMMED_MEAN else 1, (4 * expected_count + 4) // 5)
     if minimum > expected_count:
-        raise ScoringError("trimmed mean requires at least five expected judges")
+        raise ScoringError(
+            "trimmed mean requires at least five expected judges",
+            code="TRIMMED_MEAN_JUDGES_REQUIRED",
+            field="algorithm",
+        )
     return minimum
 
 
@@ -110,14 +118,26 @@ class ScoringRule:
             raise ScoringError("criterion IDs must be unique")
         with localcontext(_context(tuple(item.weight for item in criteria), len(criteria))):
             if sum((item.weight for item in criteria), Decimal(0)) != 1:
-                raise ScoringError("weights must sum exactly to 1")
+                raise ScoringError(
+                    "weights must sum exactly to 1", code="WEIGHTS_SUM_INVALID", field="criteria"
+                )
         default = default_minimum_ballots(self.expected_count, self.algorithm)
         minimum = default if self.minimum_ballots is None else self.minimum_ballots
         _positive_integer(minimum, "minimum_ballots")
         algorithm = Algorithm(self.algorithm)
         floor = 5 if algorithm == Algorithm.TRIMMED_MEAN else 1
-        if not floor <= minimum <= self.expected_count:
-            raise ScoringError("minimum_ballots must meet the algorithm floor and not exceed N")
+        if minimum < floor:
+            raise ScoringError(
+                "minimum_ballots must meet the algorithm floor",
+                code="MINIMUM_BALLOTS_BELOW_FLOOR",
+                field="minimum_ballots",
+            )
+        if minimum > self.expected_count:
+            raise ScoringError(
+                "minimum_ballots must not exceed N",
+                code="MINIMUM_BALLOTS_EXCEEDS_JUDGES",
+                field="minimum_ballots",
+            )
         object.__setattr__(self, "criteria", criteria)
         object.__setattr__(self, "algorithm", algorithm)
         object.__setattr__(self, "minimum_ballots", minimum)

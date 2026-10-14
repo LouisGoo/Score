@@ -78,6 +78,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events/{event_id}/publish-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check Publication */
+        get: operations["check_publication_api_v1_events__event_id__publish_check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events/{event_id}/publish": {
         parameters: {
             query?: never;
@@ -1018,6 +1035,8 @@ export interface components {
             code: string;
             /** Message */
             message: string;
+            /** Issues */
+            issues?: components["schemas"]["ValidationIssue"][] | null;
         };
         /** ErrorResponse */
         ErrorResponse: {
@@ -1141,6 +1160,85 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** EventListItem */
+        EventListItem: {
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Organization
+             * @default
+             */
+            organization: string;
+            /** Planned At */
+            planned_at?: string | null;
+            scoring_rule?: components["schemas"]["RuleInput"] | null;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
+            /**
+             * Allow Revisions
+             * @default true
+             */
+            allow_revisions: boolean;
+            /**
+             * Screen Title
+             * @default
+             */
+            screen_title: string;
+            /**
+             * Screen Theme
+             * @default light
+             * @enum {string}
+             */
+            screen_theme: "light" | "dark";
+            /**
+             * Show Public Qr
+             * @default true
+             */
+            show_public_qr: boolean;
+            /**
+             * Leaderboard Limit
+             * @default 10
+             */
+            leaderboard_limit: number;
+            /** Id */
+            id: string;
+            /** Owner Id */
+            owner_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "DRAFT" | "READY" | "RUNNING" | "FINISHED" | "ARCHIVED";
+            /** Public Code */
+            public_code: string | null;
+            /** Published At */
+            published_at: string | null;
+            /** Version */
+            version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Entry Count */
+            entry_count: number;
+            /** Judge Count */
+            judge_count: number;
+            /** Round Count */
+            round_count: number;
+            /** Finished Round Count */
+            finished_round_count: number;
         };
         /** EventPatch */
         EventPatch: {
@@ -1391,6 +1489,21 @@ export interface components {
             snapshot: components["schemas"]["SnapshotInfo"];
             /** Rounds */
             rounds: components["schemas"]["RoundInfo"][];
+        };
+        /** PublishCheck */
+        PublishCheck: {
+            /** Can Publish */
+            can_publish: boolean;
+            /** Issues */
+            issues: components["schemas"]["ValidationIssue"][];
+            /** Entry Count */
+            entry_count: number;
+            /** Judge Count */
+            judge_count: number;
+            /** Missing Credential Count */
+            missing_credential_count: number;
+            /** Minimum Ballots */
+            minimum_ballots: number | null;
         };
         /** PublishResult */
         PublishResult: {
@@ -1728,6 +1841,15 @@ export interface components {
              */
             created_at: string;
         };
+        /** ValidationIssue */
+        ValidationIssue: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** Field */
+            field: string;
+        };
         /** VerifyInput */
         VerifyInput: {
             /**
@@ -2045,6 +2167,91 @@ export interface operations {
             };
         };
     };
+    check_publication_api_v1_events__event_id__publish_check_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishCheck"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     publish_event_api_v1_events__event_id__publish_post: {
         parameters: {
             query?: never;
@@ -2318,7 +2525,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EventInfo"][];
+                    "application/json": components["schemas"]["EventListItem"][];
                 };
             };
             /** @description Unauthorized */

@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -15,10 +15,12 @@ from score_api.events.schemas import (
     EntryInfo,
     EventCreate,
     EventInfo,
+    EventListItem,
     EventPatch,
     InputModel,
     JudgeInfo,
 )
+from score_api.rounds.models import ScoringRound
 
 Member = type[Entry] | type[EventJudge]
 
@@ -85,15 +87,39 @@ def create_event(database: Database, owner_id: str, body: EventCreate, request_i
 
 
 def list_events(database: Database, owner_id: str, offset: int, limit: int):
+    # 一条 SQL 的一致性读；独立计数避免名单与任务 join 后的笛卡尔积。
+    def count(model, *conditions):
+        return (
+            select(func.count())
+            .select_from(model)
+            .where(model.event_id == Event.id, *conditions)
+            .correlate(Event)
+            .scalar_subquery()
+        )
+
     with database.transaction() as session:
-        rows = session.scalars(
-            select(Event)
+        rows = session.execute(
+            select(
+                Event,
+                count(Entry).label("entry_count"),
+                count(EventJudge).label("judge_count"),
+                count(ScoringRound).label("round_count"),
+                count(
+                    ScoringRound, ScoringRound.status.in_(("PUBLISHED", "SKIPPED", "NO_RESULT"))
+                ).label("finished_round_count"),
+            )
             .where(Event.owner_id == owner_id)
             .order_by(Event.created_at.desc(), Event.id.desc())
             .offset(offset)
             .limit(limit)
         )
-        return [EventInfo.model_validate(row) for row in rows]
+        return [
+            EventListItem(
+                **EventInfo.model_validate(row[0]).model_dump(),
+                **{key: value for key, value in row._mapping.items() if key != "Event"},
+            )
+            for row in rows
+        ]
 
 
 def get_event(database: Database, owner_id: str, event_id: str):

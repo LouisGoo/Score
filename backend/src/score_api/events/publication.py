@@ -3,16 +3,18 @@
 import secrets
 from uuid import uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from score_api.core.errors import APIError
+from score_api.core.errors import APIError, ValidationIssue
 from score_api.credentials.security import ALPHABET, credential_key, prepare_credential
 from score_api.credentials.service import apply_credential
 from score_api.events.models import Entry, Event, EventJudge, EventSnapshot
 from score_api.events.publication_schemas import (
     FrozenJudge,
     PublicationInfo,
+    PublishCheck,
     PublishResult,
     RoundInfo,
     SnapshotInfo,
@@ -20,7 +22,7 @@ from score_api.events.publication_schemas import (
 from score_api.events.schemas import EntryInfo, EventCreate, EventInfo, RuleInput
 from score_api.events.service import audit, owned_event
 from score_api.rounds.models import RoundJudge, ScoringRound
-from score_api.scoring import Criterion, ScoringRule
+from score_api.scoring import Criterion, ScoringError, ScoringRule
 
 
 def members(session, event_id):
@@ -41,26 +43,100 @@ def members(session, event_id):
     return entries, judges
 
 
-def validate_publication(event, entries, judges):
-    if not entries or not judges or event.scoring_rule is None:
-        raise APIError(422, "PUBLISH_INVALID", "发布需至少一个对象、一个评委及完整评分规则")
-    try:
-        rule = RuleInput.model_validate(event.scoring_rule)
-        scoring = ScoringRule(
-            criteria=tuple(
-                Criterion(c.criterion_id, c.maximum, c.weight, c.step) for c in rule.criteria
-            ),
-            expected_count=len(judges),
-            algorithm=rule.algorithm,
-            minimum_ballots=rule.minimum_ballots,
+RULE_MESSAGES = {
+    "RULE_INVALID": "评分规则不完整或不合法，请检查模式、维度、满分、步长及权重",
+    "WEIGHTS_SUM_INVALID": "维度权重合计必须为 1",
+    "TRIMMED_MEAN_JUDGES_REQUIRED": "去极值平均法至少需要 5 位评委",
+    "MINIMUM_BALLOTS_BELOW_FLOOR": "最低有效份数不能低于算法下限（平均法 1，去极值平均法 5）",
+    "MINIMUM_BALLOTS_EXCEEDS_JUDGES": "最低有效份数不能超过评委人数",
+}
+
+
+def rule_issue(error, location=()):
+    code = error.code if isinstance(error, ScoringError) else "RULE_INVALID"
+    field = error.field if isinstance(error, ScoringError) else ".".join(map(str, location))
+    return ValidationIssue(
+        code=code,
+        message=RULE_MESSAGES[code],
+        field="scoring_rule" + (f".{field}" if field else ""),
+    )
+
+
+def inspect_publication(event, entries, judges):
+    """预检与两阶段发布共用；只返回脱敏问题，不生成或修改任何凭证。"""
+    issues = []
+    for values, code, message, field in (
+        (entries, "ENTRIES_REQUIRED", "请至少添加一个评分对象", "entries"),
+        (judges, "JUDGES_REQUIRED", "请至少添加一位评委", "judges"),
+    ):
+        if not values:
+            issues.append(ValidationIssue(code=code, message=message, field=field))
+    rule = None
+    scoring = None
+    if event.scoring_rule is None:
+        issues.append(
+            ValidationIssue(
+                code="SCORING_RULE_REQUIRED", message="请配置评分规则", field="scoring_rule"
+            )
         )
-    except ValueError:
-        raise APIError(422, "PUBLISH_INVALID", "规则或评委人数不满足算法及有效份数门槛") from None
-    return {
-        **rule.model_dump(mode="json"),
-        "expected_count": len(judges),
-        "minimum_ballots": scoring.minimum_ballots,
-    }
+    else:
+        try:
+            rule = RuleInput.model_validate(event.scoring_rule)
+        except ValidationError as exc:
+            # 不回显 input/ctx/异常文本，避免存储中的非法值进入错误响应。
+            for detail in exc.errors(include_input=False, include_url=False):
+                issues.append(rule_issue(detail.get("ctx", {}).get("error"), detail["loc"]))
+        if rule is not None and judges:
+            try:
+                scoring = ScoringRule(
+                    criteria=tuple(
+                        Criterion(c.criterion_id, c.maximum, c.weight, c.step)
+                        for c in rule.criteria
+                    ),
+                    expected_count=len(judges),
+                    algorithm=rule.algorithm,
+                    minimum_ballots=rule.minimum_ballots,
+                )
+            except ScoringError as exc:
+                issues.append(rule_issue(exc))
+    check = PublishCheck(
+        can_publish=not issues,
+        issues=issues,
+        entry_count=len(entries),
+        judge_count=len(judges),
+        missing_credential_count=sum(not judge.credential_is_set for judge in judges),
+        minimum_ballots=scoring.minimum_ballots if scoring else None,
+    )
+    frozen_rule = (
+        None
+        if scoring is None
+        else {
+            **rule.model_dump(mode="json"),
+            "expected_count": len(judges),
+            "minimum_ballots": scoring.minimum_ballots,
+        }
+    )
+    return check, frozen_rule
+
+
+def validate_publication(event, entries, judges):
+    check, rule = inspect_publication(event, entries, judges)
+    if not check.can_publish:
+        raise APIError(
+            422, "PUBLISH_INVALID", "发布检查未通过，请修正问题后重试", issues=check.issues
+        )
+    return rule
+
+
+def check_publication(database, owner_id, event_id):
+    # 活动、规则、名单与补码数来自同一读视图，不持行锁。
+    with database.read_snapshot() as session:
+        event = owned_event(session, owner_id, event_id)
+        if event.status != "DRAFT":
+            raise APIError(409, "EVENT_NOT_DRAFT", "活动已发布")
+        entries, judges = members(session, event_id)
+        check, _ = inspect_publication(event, entries, judges)
+        return check
 
 
 def generate_public_code():

@@ -334,6 +334,108 @@
         }
       }
     },
+    "/api/v1/events/{event_id}/publish-check": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Check Publication",
+        "operationId": "check_publication_api_v1_events__event_id__publish_check_get",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishCheck"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/api/v1/events/{event_id}/publish": {
       "post": {
         "tags": [
@@ -780,7 +882,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/EventInfo"
+                    "$ref": "#/components/schemas/EventListItem"
                   },
                   "title": "Response List Events Api V1 Events Get"
                 }
@@ -6198,6 +6300,20 @@
           "message": {
             "type": "string",
             "title": "Message"
+          },
+          "issues": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ValidationIssue"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issues"
           }
         },
         "type": "object",
@@ -6477,6 +6593,189 @@
           "updated_at"
         ],
         "title": "EventInfo"
+      },
+      "EventListItem": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Description",
+            "default": ""
+          },
+          "organization": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Organization",
+            "default": ""
+          },
+          "planned_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned At"
+          },
+          "scoring_rule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuleInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 86400.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "allow_revisions": {
+            "type": "boolean",
+            "title": "Allow Revisions",
+            "default": true
+          },
+          "screen_title": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Screen Title",
+            "default": ""
+          },
+          "screen_theme": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ],
+            "title": "Screen Theme",
+            "default": "light"
+          },
+          "show_public_qr": {
+            "type": "boolean",
+            "title": "Show Public Qr",
+            "default": true
+          },
+          "leaderboard_limit": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Leaderboard Limit",
+            "default": 10
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "owner_id": {
+            "type": "string",
+            "title": "Owner Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "READY",
+              "RUNNING",
+              "FINISHED",
+              "ARCHIVED"
+            ],
+            "title": "Status"
+          },
+          "public_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Code"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "entry_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Entry Count"
+          },
+          "judge_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Judge Count"
+          },
+          "round_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Round Count"
+          },
+          "finished_round_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Finished Round Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "id",
+          "owner_id",
+          "status",
+          "public_code",
+          "published_at",
+          "version",
+          "created_at",
+          "updated_at",
+          "entry_count",
+          "judge_count",
+          "round_count",
+          "finished_round_count"
+        ],
+        "title": "EventListItem"
       },
       "EventPatch": {
         "properties": {
@@ -7244,6 +7543,55 @@
           "rounds"
         ],
         "title": "PublicationInfo"
+      },
+      "PublishCheck": {
+        "properties": {
+          "can_publish": {
+            "type": "boolean",
+            "title": "Can Publish"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          },
+          "judge_count": {
+            "type": "integer",
+            "title": "Judge Count"
+          },
+          "missing_credential_count": {
+            "type": "integer",
+            "title": "Missing Credential Count"
+          },
+          "minimum_ballots": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Ballots"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "can_publish",
+          "issues",
+          "entry_count",
+          "judge_count",
+          "missing_credential_count",
+          "minimum_ballots"
+        ],
+        "title": "PublishCheck"
       },
       "PublishResult": {
         "properties": {
@@ -8188,6 +8536,29 @@
           "created_at"
         ],
         "title": "SnapshotInfo"
+      },
+      "ValidationIssue": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "field"
+        ],
+        "title": "ValidationIssue"
       },
       "VerifyInput": {
         "properties": {

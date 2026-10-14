@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import ConfigDict
 
+from score_api.core.errors import ValidationIssue
 from score_api.credentials.schemas import CredentialResult
 from score_api.events.schemas import EntryInfo, EventInfo, InputModel, JudgeCreate, RuleInput
 from score_api.rounds.schemas import RoundInfo
@@ -16,6 +17,15 @@ class FrozenJudge(JudgeCreate):
 class PublishedRule(RuleInput):
     expected_count: int
     minimum_ballots: int
+
+
+class PublishCheck(InputModel):
+    can_publish: bool
+    issues: list[ValidationIssue]
+    entry_count: int
+    judge_count: int
+    missing_credential_count: int
+    minimum_ballots: int | None
 
 
 class SnapshotInfo(InputModel):
