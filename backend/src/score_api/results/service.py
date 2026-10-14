@@ -9,7 +9,7 @@ from score_api.core.streams import advance_views, automatic_screen
 from score_api.events.models import Entry, EventSnapshot
 from score_api.events.schemas import EventInfo
 from score_api.events.service import audit, owned_event
-from score_api.outbox.models import OutboxEvent
+from score_api.outbox.service import record
 from score_api.results.models import ResultSnapshot
 from score_api.results.schemas import Calculation, RankingInfo, ResultInfo
 from score_api.rounds.models import RoundJudge, ScoringRound
@@ -49,16 +49,7 @@ def record_change(session, event, row, actor_id, action, before, reason, request
     target = row or event
     after = {"status": target.status, "version": target.version, "reason": reason}
     audit(session, event, actor_id, action, target.id, before, after, request_id, now)
-    session.add(
-        OutboxEvent(
-            id=uuid4().hex,
-            event_id=event.id,
-            version=event.version,
-            type=action,
-            payload={"target_id": target.id},
-            created_at=now,
-        )
-    )
+    record(session, event, action, now, public=True)
 
 
 def freeze_result(session, event, row, actor_id, reason, request_id, now, *, source="manual"):

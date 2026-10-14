@@ -89,7 +89,16 @@ def counts(db, event_id):
     with db.transaction() as session:
         return [
             session.scalar(
-                select(func.count()).select_from(model).where(model.event_id == event_id)
+                select(func.count())
+                .select_from(model)
+                .where(
+                    model.event_id == event_id,
+                    *(
+                        [OutboxEvent.type.in_(("ballot.submitted", "ballot.revised"))]
+                        if model is OutboxEvent
+                        else []
+                    ),
+                )
             )
             for model in (Ballot, BallotRevision, IdempotencyRecord, BallotAudit, OutboxEvent)
         ]
@@ -119,11 +128,15 @@ def test_receipt_revision_count_and_original_retry(scoring, event_db):
         events = list(
             session.scalars(
                 select(OutboxEvent)
-                .where(OutboxEvent.event_id == scoring[0]["event"]["id"])
+                .where(
+                    OutboxEvent.event_id == scoring[0]["event"]["id"],
+                    OutboxEvent.type.in_(("ballot.submitted", "ballot.revised")),
+                )
                 .order_by(OutboxEvent.version)
             )
         )
-        assert [e.payload["submitted_count"] for e in events] == [1, 1]
+        assert [len(e.payload["streams"]) for e in events] == [4, 2]
+        assert all(e.payload["data"] == {} for e in events)
         assert [e.type for e in events] == ["ballot.submitted", "ballot.revised"]
         assert all(e.delivered_at is None and "scores" not in e.payload for e in events)
         audit = session.scalar(

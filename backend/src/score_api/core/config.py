@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Score API"
+    redis_url: SecretStr | None = None
+    realtime_ticket_ttl_seconds: int = Field(default=30, ge=5, le=60)
+    realtime_auth_interval_seconds: float = Field(default=30, ge=0.1, le=60)
     database_url: SecretStr | None = Field(default=None, validation_alias="DATABASE_URL")
     db_pool_timeout: float = Field(default=3, gt=0, le=30)
     db_pool_recycle: int = Field(default=300, gt=0)

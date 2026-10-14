@@ -1,8 +1,10 @@
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import FastAPI, Response
 from pydantic import BaseModel
+from redis import Redis
 from sqlalchemy.exc import SQLAlchemyError
 
 from score_api.auth.router import router as auth_router
@@ -13,6 +15,8 @@ from score_api.credentials.router import router as credentials_router
 from score_api.db import Database, utc_now
 from score_api.events.router import router as events_router
 from score_api.judge_sessions.router import router as judge_sessions_router
+from score_api.realtime.broker import Broker, stop
+from score_api.realtime.router import router as realtime_router
 from score_api.results.router import router as results_router
 from score_api.rounds.router import router as rounds_router
 from score_api.snapshots.router import router as snapshots_router
@@ -34,15 +38,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         database = Database(settings) if settings.database_url is not None else None
         app.state.database = database
+        task = None
+        if settings.redis_url is not None:
+            url = settings.redis_url.get_secret_value()
+            app.state.realtime = Broker(url)
+            app.state.ticket_redis = Redis.from_url(url, socket_connect_timeout=2, socket_timeout=2)
+            task = asyncio.create_task(app.state.realtime.run())
         try:
             yield
         finally:
+            if task is not None:
+                await stop(task)
+                app.state.ticket_redis.close()
             if database is not None:
                 database.dispose()
             app.state.database = None
 
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.state.database = None
+    app.state.realtime = None
     app.state.settings = settings
     app.state.clock = utc_now
     install_error_handlers(app)
@@ -54,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ballots_router)
     app.include_router(results_router)
     app.include_router(snapshots_router)
+    app.include_router(realtime_router)
 
     @app.get("/api/v1/health/live", response_model=Liveness, tags=["health"])
     def liveness() -> Liveness:

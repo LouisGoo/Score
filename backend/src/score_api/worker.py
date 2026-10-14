@@ -111,13 +111,25 @@ def main():
     )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    database = None
+    database = redis = None
     try:
-        database = Database(Settings(), role="worker")
+        settings = Settings()
+        database = Database(settings, role="worker")
         if not database.is_ready():
             logger.error("database_not_ready")
             return 1
         worker = DeadlineWorker(database, batch_size=args.batch_size)
+        if settings.redis_url is not None:
+            from redis import Redis
+
+            from score_api.outbox.worker import OutboxWorker
+
+            redis = Redis.from_url(
+                settings.redis_url.get_secret_value(), socket_connect_timeout=2, socket_timeout=2
+            )
+            worker = CombinedWorker(
+                worker, OutboxWorker(database, redis, batch_size=args.batch_size)
+            )
         if args.once:
             result = worker.run_once()
             logger.info(
@@ -136,8 +148,24 @@ def main():
         logger.error("worker_unavailable error_type=%s", type(error).__name__)
         return 1
     finally:
+        if redis is not None:
+            redis.close()
         if database is not None:
             database.dispose()
+
+
+class CombinedWorker:
+    def __init__(self, deadline, outbox):
+        self.deadline, self.outbox = deadline, outbox
+
+    def run_once(self):
+        deadline = self.deadline.run_once()
+        outbox = self.outbox.run_once()
+        return Batch(
+            deadline.scanned + outbox.scanned,
+            deadline.closed + outbox.closed,
+            deadline.failed + outbox.failed,
+        )
 
 
 if __name__ == "__main__":

@@ -5561,6 +5561,87 @@
         }
       }
     },
+    "/api/v1/realtime/tickets": {
+      "post": {
+        "tags": [
+          "realtime"
+        ],
+        "summary": "Ticket",
+        "operationId": "ticket_api_v1_realtime_tickets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health/live": {
       "get": {
         "tags": [
@@ -8536,6 +8617,68 @@
           "created_at"
         ],
         "title": "SnapshotInfo"
+      },
+      "TicketInfo": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "title": "Ticket"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          },
+          "stream_path": {
+            "type": "string",
+            "title": "Stream Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "expires_at",
+          "stream_path"
+        ],
+        "title": "TicketInfo"
+      },
+      "TicketInput": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 32,
+            "title": "Event Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "judge",
+              "screen"
+            ],
+            "title": "Role"
+          },
+          "grant_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "role"
+        ],
+        "title": "TicketInput"
       },
       "ValidationIssue": {
         "properties": {

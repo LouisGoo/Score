@@ -8,6 +8,7 @@ from score_api.credentials.security import prepare_credential
 from score_api.events.models import EventJudge
 from score_api.events.service import audit, get_member, owned_event
 from score_api.judge_sessions.models import JudgeConfirmation, JudgeSession
+from score_api.outbox.service import record
 
 
 def credential_metadata(judge):
@@ -133,5 +134,6 @@ def reset_credential(database, settings, owner_id, event_id, judge_id, body, req
                 .values(consumed_at=now)
             )
             event.version += 1
+            record(session, event, "credential.reset", now)
         return result
     raise APIError(503, "CREDENTIAL_GENERATION_BUSY", "身份码生成失败，请重试", retry_after=1)

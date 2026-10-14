@@ -7,7 +7,7 @@ import time
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
 from score_api.ballots.models import Ballot, BallotAudit, BallotRevision, IdempotencyRecord
@@ -16,7 +16,7 @@ from score_api.core.errors import APIError
 from score_api.core.streams import advance_views
 from score_api.events.models import EventSnapshot
 from score_api.judge_sessions.service import lock_principal
-from score_api.outbox.models import OutboxEvent
+from score_api.outbox.service import record
 from score_api.rounds.models import RoundJudge
 from score_api.rounds.service import require_before_deadline, round_in_event
 from score_api.scoring import Criterion, ScoringError, ScoringRule, personal_total
@@ -176,28 +176,10 @@ def submit_once(database, principal, round_id, body, key, scores, digest, reques
                 created_at=now,
             )
         )
-        # 逻辑评分单数，而不是历史版本数；改分不增已交人数。
-        count = session.scalar(
-            select(func.count()).select_from(Ballot).where(Ballot.round_id == row.id)
-        )
         event.version += 1
         event.updated_at = now
         advance_views(session, event, judge_id=principal.judge_id, public=not previous)
-        session.add(
-            OutboxEvent(
-                id=uuid4().hex,
-                event_id=event.id,
-                version=event.version,
-                type=action,
-                payload={
-                    "round_id": row.id,
-                    "judge_id": principal.judge_id,
-                    "revision": ballot.current_revision,
-                    "submitted_count": count,
-                },
-                created_at=now,
-            )
-        )
+        record(session, event, action, now, public=not previous, judge_id=principal.judge_id)
     return result
 
 

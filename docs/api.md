@@ -497,20 +497,19 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 以上并非完整业务错误目录；任务控制和评分的新增错误及重试语义见第 2 节。
 
-## 7. 实时订阅与恢复（规划中）
+## 7. 实时订阅（18 已实现；前端恢复在 19）
 
-1. 获取短时一次性票据，建立授权 WebSocket 连接并缓冲消息。
-2. 获取当前角色快照，丢弃不高于快照版本的缓冲事件，再顺序应用后续事件。
-3. 忽略旧版本；版本跳号、重连或页面回到前台时拉取快照。
-4. 每 30 秒轻量核对版本；持续连接失败时降级为带抖动的 5 秒轮询，并按负载退避。
+`POST /api/v1/realtime/tickets` 请求包含 `event_id`、`role`（admin/judge/screen）；screen 额外提供 `grant_id`。管理员/评委使用各自 Cookie 和 CSRF，大屏使用 Bearer；全部检查 Origin 和活动授权。返回 `ticket`、`expires_at`、`stream_path`，默认有效期 30 秒，响应 no-store。不可访问的活动/草稿 404，授权失效 401，CSRF/Origin 不合法 403，Redis 不可用 503 `REALTIME_UNAVAILABLE`（Retry-After: 5）。请求失败可重试获取新票据。
 
-消息字段规划为 event_id、message_id、type、scope、version、server_time、payload。
-事件类型包括 round.opened/paused/resumed/closed、progress.updated、result.published、screen.changed、session.revoked、event.finished。
+连接 `WS /api/v1/events/{event_id}/stream`，第一帧发送 `{"ticket":"..."}`（5 秒内）；不在 URL 传凭证。服务原子消费 Redis 票据，并校验绑定的活动、Origin 及数据库当前授权。禁止复用、跨活动使用或重置后继续使用旧票据。服务返回 `stream.ready` 后客户端缓冲通知并拉角色快照。无效票据关闭码 4401，来源拒绝在握手前关闭，实时故障/慢消费者关闭码 1013。
 
-管理员流、大屏流、每位评委个人流分别递增版本；各角色独立序列化。
-大屏和评委不能收到其他评委原始分或未公布汇总分。
-Redis 只负责通知，数据库为权威来源；重复投递、断线恢复不能重复计分。
-具体票据交换字段、连接传参方式和消息 schema 随提交 18 补齐。
+业务通知为 `{event_id,message_id,type,scope,version,server_time,payload:{}}`。这是失效通知，实际数据通过角色快照读取；不包含原始分、回执、凭证或未公布汇总分。版本在业务事务内冻结，与管理员、大屏、每位评委快照版本相同。新提交推进全部角色；改分只推进管理员和本人；展示设置只推进管理员/大屏；授权管理只推进管理员。支持开评/暂停/恢复/跳过、提交/改分、收评/补评/无结果/公布、结束/归档、展示与身份码重置。
+
+控制消息 `stream.ready`、`stream.heartbeat`、`stream.resync`、`session.revoked` 不占业务版本。过期前的空闲连接默认每 30 秒校验授权并发送心跳；每次通知发送前再次查数据库，已提交撤销的身份不能收到后续业务通知。退出/重置/撤销触发 outbox，接收端重新查授权并发送 `session.revoked`、关闭 4401。Redis 断流会关闭连接；心跳授权复查也可覆盖通知遗失。WebSocket 不持有长期数据库连接。
+
+业务与 outbox 同事务，worker 租约领取后在事务外发布，成功后条件确认。租约 30 秒，失败最多退避 60 秒；崩溃后可补发，确认前崩溃会重复。`message_id` 与角色版本保持稳定，多个 worker 可乱序投递，消费者必须去重并在跳号时恢复快照。18 前的旧 outbox 只能触发 `stream.resync`，不能伪造历史版本。Redis Pub/Sub 不保证离线补发，`delivered_at` 只表示发布成功，不表示浏览器已收取。
+
+19 的恢复约定：连接缓冲后取快照，旧版本去重、跳号/重连/回到前台时刷新，每 30 秒轻量核对版本，失败时默认 5 秒抖动轮询并退避；服务端合并快照回源，个人数据按身份隔离。
 
 ## 8. 随代码维护
 

@@ -9,6 +9,7 @@ from score_api.core.errors import APIError
 from score_api.core.streams import advance_views, automatic_screen
 from score_api.events.models import EventSnapshot
 from score_api.events.service import audit, owned_event
+from score_api.outbox.service import record
 from score_api.rounds.models import ScoringRound
 from score_api.rounds.schemas import RoundInfo, RoundState
 
@@ -99,6 +100,13 @@ def control(database, owner_id, round_id, action, body, request_id, clock):
         event.updated_at = now
         automatic_screen(event, action, row)
         advance_views(session, event)
+        names = {
+            "open": "round.opened",
+            "pause": "round.paused",
+            "resume": "round.resumed",
+            "skip": "round.skipped",
+        }
+        record(session, event, names[action], now, public=True)
         after = RoundInfo.model_validate(row).model_dump(mode="json")
         if action == "skip":
             after["reason"] = body.reason

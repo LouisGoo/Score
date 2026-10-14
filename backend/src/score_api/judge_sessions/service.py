@@ -17,6 +17,7 @@ from score_api.events.models import Event, EventJudge
 from score_api.events.publication_schemas import FrozenJudge
 from score_api.judge_sessions.models import JudgeAuthAudit, JudgeConfirmation, JudgeSession
 from score_api.judge_sessions.schemas import ConfirmationInfo, JudgeSessionInfo, PreviewInfo
+from score_api.outbox.service import authorization_changed
 
 
 def judge_csrf(token):
@@ -297,3 +298,4 @@ def logout(database, principal, clock, request_id):
         now = clock()
         row.revoked_at = now
         auth_audit(session, event.id, judge.id, "logout", request_id, now)
+        authorization_changed(session, event.id, now)

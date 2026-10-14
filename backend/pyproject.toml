@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Online scoring system API"
 requires-python = ">=3.10"
 dependencies = [
-    "fastapi", "uvicorn", "pydantic-settings",
+    "fastapi", "uvicorn", "pydantic-settings", "redis>=5,<6", "websockets>=15,<16",
     "SQLAlchemy>=2.0,<2.1", "alembic>=1.13,<2", "PyMySQL[rsa]>=1.1,<2",
 ]
 

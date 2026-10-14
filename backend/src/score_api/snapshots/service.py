@@ -14,7 +14,7 @@ from score_api.events.models import Entry, Event, EventJudge, EventSnapshot
 from score_api.events.schemas import EntryInfo, EventInfo, JudgeInfo
 from score_api.events.service import audit, owned_event
 from score_api.judge_sessions.service import lock_principal
-from score_api.outbox.models import OutboxEvent
+from score_api.outbox.service import record
 from score_api.results.models import ResultSnapshot
 from score_api.results.schemas import BallotHistory, RankingInfo, ResultInfo
 from score_api.rounds.models import RoundJudge, ScoringRound
@@ -264,16 +264,7 @@ def record_screen_change(
     event.version += 1
     event.updated_at = now
     audit(session, event, owner_id, action, target_id, before, after, request_id, now)
-    session.add(
-        OutboxEvent(
-            id=uuid4().hex,
-            event_id=event.id,
-            version=event.version,
-            type=action,
-            payload={"target_id": target_id},
-            created_at=now,
-        )
-    )
+    record(session, event, action, now, screen=action == "screen.changed")
 
 
 def create_grant(database, owner_id, event_id, body, request_id, clock):

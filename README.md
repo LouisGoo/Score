@@ -2,7 +2,7 @@
 
 为固定评委的比赛、答辩和项目评审提供主持人控制台、手机评分与只读大屏。
 
-目前开发至 **17：只读展示大屏**。后端 HTTP 评分闭环、主办方配置与控制台、评委手机评分流程、大屏授权管理与六种展示模式均已实现。手机页面采用弹性单列布局，大屏采用响应式布局与榜单分页，支持主题、全屏与公共二维码。当前通过轮询同步，实时推送在 18/19 接入；17 的实现与验证边界见 [Review 17](docs/review-17.md)。
+目前开发至 **18：事务实时事件投递**。后端 HTTP 评分闭环、主办方配置与控制台、评委手机评分流程、大屏授权管理与六种展示模式均已实现。手机页面采用弹性单列布局，大屏采用响应式布局与榜单分页，支持主题、全屏与公共二维码。后端已支持 outbox、Redis 跨进程通知和一次性票据 WebSocket；前端当前仍通过轮询同步，19 接入恢复策略。见 [Review 18](docs/review-18.md)。
 
 - [需求与架构设计](./docs/在线打分系统-产品需求与架构设计.md)
 - [接口文档与业务约定](./docs/api.md)
@@ -31,7 +31,7 @@
 
 推荐在 WSL/Linux 中开发：Python 3.10、Node.js 24、npm、Git。
 Python 锁文件在 Python 3.10 下生成，CI 使用相同版本；升级 Python 时应重新解析依赖并 review。
-数据库采用 MySQL 8.0 InnoDB；本地 Compose 固定为用户提供的 8.0.40。Redis 本批提供容器，应用通知功能在后续批次接入。
+数据库采用 MySQL 8.0 InnoDB；本地 Compose 固定为用户提供的 8.0.40。Redis 用于短时票据与跨进程实时通知。
 
 ```text
 backend/src/score_api/
@@ -58,8 +58,9 @@ backend/src/score_api/
 ├── ballots/             评分提交、原始版本、永久回执、事务重试与审计
 ├── results/             收评快照、补评、公布、排名、结束/归档
 ├── snapshots/           管理/评委/大屏快照、只读授权、展示设置
-├── worker.py            独立到期收评进程（2 条连接预算）
-├── outbox/              内部事务事件模型（投递待 18）
+├── realtime/            一次性连接票据、授权与跨进程订阅
+├── worker.py            到期收评与 outbox 投递（共享 2 条连接预算）
+├── outbox/              事务事件、租约领取与可靠投递
 ├── db.py                连接池、事务、Base、UTC 类型
 ├── scoring.py           独立评分纯函数
 └── migrations/          Alembic 环境及已有迁移历史
@@ -208,3 +209,11 @@ CI 使用 MySQL 8.0.40 服务执行完整后端检查。构建已含 TypeScript 
 10 新增迁移 `0010_ballots`，建立逻辑评分单、原始评分历史、永久幂等回执、评委评分审计与 outbox 五张表。PUT/GET `/api/v1/rounds/{id}/my-ballot` 支持提交、改分和本人回执核验；任务锁内验证状态/截止，死锁及锁超时完整事务最多重试 3 次。事务成功后才返回回执，改分不增加已交人数。详见 [API 文档](docs/api.md) 与 [Review 10](docs/review-10.md)。
 
 2026-10-13：10 已同步到远端 `0010_ballots`，本地完整后端 **287 passed**，前端构建通过。迁移仅增加项目结构，既有表及记录数保留；尚未配置的身份码 HMAC 密钥须在正式使用前补齐。
+
+## 实时通知（18）
+
+在选定环境显式运行 `alembic upgrade head` 升至 `0018_realtime`（本批未操作远程库）。API 与独立 worker 配置相同 `SCORE_REDIS_URL`，然后分别重启 API 与 `python -m score_api.worker`。worker 同时负责到期收评和 outbox 投递；不单独创建额外数据库池。未配置 Redis 时仍可使用 HTTP 评分和快照。
+
+Redis 故障只中断实时通道：票据返回 503，已提交 outbox 保留，worker 退避后重投。Redis Pub/Sub 不持久保存浏览器漏掉的消息，页面恢复必须重新获取快照。握手在第一帧传票据；反向代理需要开启 WS Upgrade。开发代理配置在 19 随前端接入更新。
+
+验收实时集成测试需在独立测试库配置 `SCORE_TEST_DATABASE_URL` 和 `SCORE_TEST_REDIS_URL`（建议独立 Redis 实例/DB），执行 `pytest -q`；不配置 Redis 时实时集成项明确跳过。

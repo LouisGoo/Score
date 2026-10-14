@@ -11,6 +11,15 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     services:
+      redis:
+        image: redis:7.4.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
       mysql:
         image: mysql:8.0.40
         env:
@@ -26,6 +35,7 @@ jobs:
           --health-timeout=3s
           --health-retries=30
     env:
+      SCORE_TEST_REDIS_URL: redis://127.0.0.1:6379/15
       SCORE_TEST_DATABASE_URL: mysql+pymysql://score:ci-score-only@127.0.0.1:3306/score_test
     defaults:
       run:

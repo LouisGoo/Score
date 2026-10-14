@@ -23,6 +23,7 @@ from score_api.core.security import (
     verify_password,
 )
 from score_api.db import Database
+from score_api.outbox.service import admin_authorization_changed
 
 
 @dataclass(frozen=True)
@@ -159,6 +160,13 @@ def authenticate(
             token = secrets.token_urlsafe(32)
             # 再次登录时撤销此浏览器携带的旧会话，避免会话固定或遗留。
             if TOKEN_PATTERN.fullmatch(old_token):
+                old_admin_id = session.scalar(
+                    select(AdminSession.admin_id).where(
+                        AdminSession.token_hash == token_hash(old_token)
+                    )
+                )
+                if old_admin_id:
+                    admin_authorization_changed(session, old_admin_id, now)
                 session.execute(
                     update(AdminSession)
                     .where(
@@ -205,3 +213,4 @@ def revoke_session(
         if not result.rowcount:
             raise APIError(401, "SESSION_EXPIRED", "会话失效，请重新登录")
         audit(session, request_id, now, "logout", principal.admin.id)
+        admin_authorization_changed(session, principal.admin.id, now)

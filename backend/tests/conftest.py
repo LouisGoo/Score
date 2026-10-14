@@ -12,7 +12,7 @@ from pydantic import SecretStr
 from sqlalchemy import delete, select
 from sqlalchemy.engine import make_url
 
-from score_api.auth.models import Admin, AdminSession
+from score_api.auth.models import Admin, AdminSession, AuthAudit
 from score_api.ballots.models import Ballot, BallotAudit, BallotRevision, IdempotencyRecord
 from score_api.core.config import Settings
 from score_api.core.security import session_csrf, token_hash
@@ -81,6 +81,7 @@ def event_db(database, mysql_settings, monkeypatch):
         )
         session.execute(delete(Event).where(Event.owner_id.in_(ids)))
         session.execute(delete(AdminSession).where(AdminSession.admin_id.in_(ids)))
+        session.execute(delete(AuthAudit).where(AuthAudit.admin_id.in_(ids)))
         session.execute(delete(Admin).where(Admin.id.in_(ids)))
 
 
