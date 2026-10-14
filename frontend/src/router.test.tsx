@@ -1,19 +1,15 @@
-import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
-import { createQueryClient } from './api/query'
-import { routes } from './router'
+import { screen, waitFor } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { apiError, mockApi, renderRoute } from './test/render'
 
-function renderAt(path: string) {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ status: 'ok' }), { status: 200 })))
-  const router = createMemoryRouter(routes, { initialEntries: [path] })
-  render(
-    <QueryClientProvider client={createQueryClient()}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  )
-  return router
+const session = { admin: { id: 'a1', login: 'host.admin' }, expires_at: '2026-10-14T08:00:00Z', csrf_token: 'csrf' }
+
+function renderAt(path: string, signedIn = true) {
+  mockApi({
+    'GET /health/live': { body: { status: 'ok' } },
+    'GET /auth/me': signedIn ? { body: session } : apiError('SESSION_EXPIRED', 401),
+  })
+  return renderRoute(path)
 }
 
 describe('routes', () => {
@@ -24,7 +20,6 @@ describe('routes', () => {
   })
 
   it.each([
-    ['/admin/events', '活动列表', '14b'],
     ['/admin/events/e1/control', '主持人控制台', '15'],
     ['/join/ABCDEFGH2345', '加入活动', '16'],
     ['/judge/events/e1/history', '本人记录', '16'],
@@ -36,9 +31,15 @@ describe('routes', () => {
   })
 
   it('redirects /admin to the event list', async () => {
-    const router = renderAt('/admin')
-    expect(await screen.findByText('活动列表')).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/admin/events')
+    const { router } = renderAt('/admin')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/admin/events'))
+  })
+
+  it('sends signed-out organizers to login with a return path', async () => {
+    const { router } = renderAt('/admin/events/e1/control', false)
+    expect(await screen.findByRole('button', { name: '登录' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/admin/login')
+    expect(router.state.location.search).toBe('?next=%2Fadmin%2Fevents%2Fe1%2Fcontrol')
   })
 
   it('shows not found for unknown paths', async () => {

@@ -9,7 +9,10 @@ export const queryKeys = {
   admin: ['admin'] as const,
   judge: ['judge'] as const,
   screen: ['screen'] as const,
+  adminSession: ['admin', 'session'] as const,
   adminEvents: (adminId: string) => ['admin', adminId, 'events'] as const,
+  /** 单个活动的详情、名单、预检与发布记录共用此前缀，写操作后整体失效。 */
+  adminEvent: (adminId: string, eventId: string) => ['admin', adminId, 'event', eventId] as const,
   adminSnapshot: (adminId: string, eventId: string) => ['admin', adminId, 'snapshot', eventId] as const,
   judgeSnapshot: (judgeId: string, eventId: string) => ['judge', judgeId, 'snapshot', eventId] as const,
   screenSnapshot: (grantId: string) => ['screen', grantId, 'snapshot'] as const,

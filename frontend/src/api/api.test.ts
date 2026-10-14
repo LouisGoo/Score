@@ -65,6 +65,19 @@ describe('request', () => {
     expect((failure as ApiError).outcomeUnknown).toBe(false)
   })
 
+  it('keeps well-formed validation issues from the error envelope', async () => {
+    const issue = { code: 'ENTRIES_REQUIRED', message: '至少需要一个参评对象', field: 'entries' }
+    mockFetch({
+      status: 422,
+      body: { error: { code: 'PUBLISH_INVALID', message: '发布检查未通过', issues: [issue, { code: 1 }] }, request_id: 'r'.repeat(32) },
+    })
+    const failure = (await request('/x').catch((e: unknown) => e)) as ApiError
+    expect(failure).toMatchObject({ status: 422, code: 'PUBLISH_INVALID', issues: [issue] })
+
+    mockFetch(error('NOT_FOUND', 404))
+    expect(((await request('/x').catch((e: unknown) => e)) as ApiError).issues).toEqual([])
+  })
+
   it('handles non-JSON error pages', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>bad gateway</html>', { status: 502 })))
     await expect(request('/x')).rejects.toMatchObject({ status: 502, code: 'HTTP_ERROR' })

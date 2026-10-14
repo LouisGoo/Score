@@ -27,11 +27,16 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <Navigate to="events" replace /> },
           { path: 'login', lazy: page(admin, 'LoginPage') },
-          { path: 'events', lazy: page(admin, 'EventListPage') },
-          { path: 'events/new', lazy: page(admin, 'EventCreatePage') },
-          { path: 'events/:eventId/settings', lazy: page(admin, 'EventSettingsPage') },
-          { path: 'events/:eventId/control', lazy: page(admin, 'EventControlPage') },
-          { path: 'events/:eventId/results', lazy: page(admin, 'EventResultsPage') },
+          {
+            lazy: page(admin, 'AdminGuard'),
+            children: [
+              { path: 'events', lazy: page(admin, 'EventListPage') },
+              { path: 'events/new', lazy: page(admin, 'EventCreatePage') },
+              { path: 'events/:eventId/settings', lazy: page(admin, 'EventSettingsPage') },
+              { path: 'events/:eventId/control', lazy: page(admin, 'EventControlPage') },
+              { path: 'events/:eventId/results', lazy: page(admin, 'EventResultsPage') },
+            ],
+          },
         ],
       },
       {

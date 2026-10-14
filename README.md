@@ -21,6 +21,7 @@
 - [Web 前端开发计划](./docs/frontend-plan.md)
 - [前端基础层 review](./docs/review-14a.md)
 - [14b 后端缺口 review](./docs/review-14b-backend.md)
+- [14b 主办方登录与活动编辑 review](./docs/review-14b.md)
 - [当前目录重构 review](./docs/review-auth-refactor.md)
 
 ## 环境与目录

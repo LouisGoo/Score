@@ -19,6 +19,30 @@ body { margin: 0; min-width: 320px; }
 .admin-header { display: flex; align-items: center; background: #172e29; padding: 0 24px; }
 .admin-header .brand { color: #fff; font-size: 16px; }
 .admin-content { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px; }
+.admin-header { justify-content: space-between; gap: 16px; }
+.admin-header .account-name, .admin-header .account-logout { color: rgba(255, 255, 255, .85); }
+.page-spin { display: block; margin: 96px auto; }
+.page-heading { margin-bottom: 16px; }
+.page-heading h3, .inline-title { margin: 0 !important; }
+.setup-steps { margin-bottom: 20px; }
+.full-width { width: 100%; }
+.form-alert { margin-bottom: 16px; }
+.field-help { display: block; margin-top: 4px; }
+.duration-input { width: 140px; }
+.list-filter { margin-bottom: 16px; }
+.list-progress { width: 96px; margin: 0; }
+.panel-toolbar { margin-bottom: 12px; }
+.criteria-footer { margin-top: 8px; }
+.cell-error { display: block; font-size: 12px; margin-top: 2px; }
+.frozen-criteria { margin-top: 16px; }
+.credential-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; }
+.copy-all { margin: 12px 0 0; }
+.invite-qr { margin-top: 16px; padding: 12px; background: #f5f4ef; }
+.entry-note { margin: 12px 0 0; }
+.request-id { font-size: 12px; opacity: .75; margin-top: 4px; }
+
+.login-page { min-height: calc(100vh - 112px); display: flex; align-items: center; justify-content: center; }
+.login-card { width: 100%; max-width: 400px; }
 
 .judge-layout { max-width: 480px; min-height: 100vh; margin: 0 auto; padding: 16px; }
 

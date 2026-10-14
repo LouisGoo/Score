@@ -231,7 +231,7 @@ const response = await fetch('/api/v1/auth/login', {
 
 预检未登录返回 401 `SESSION_EXPIRED`，无权/不存在返回 404 `NOT_FOUND`，非草稿返回 409 `EVENT_NOT_DRAFT`，数据库故障返回 503 `SERVICE_UNAVAILABLE`（`Retry-After: 3`）。响应 `Cache-Control: no-store`；这是只读请求，可按退避策略重试。
 
-`can_publish=true` 表示当前业务配置通过，不预留名单、锁或凭证，不保证稍后的发布成功；实际发布在准备前和活动锁内均重新校验。密钥配置、凭证生成等运行条件仍由发布接口检查。POST 校验失败时保留 `{error:{code,message},request_id}` 包装并附 `error.issues`；其他错误不额外返回此字段。前端发布失败后可重新 GET 预检展示最新问题；14a 的 `ApiError` 当前仅解析顶层 code/message，直接展示 POST 问题列表时需在页面批次扩展解析。
+`can_publish=true` 表示当前业务配置通过，不预留名单、锁或凭证，不保证稍后的发布成功；实际发布在准备前和活动锁内均重新校验。密钥配置、凭证生成等运行条件仍由发布接口检查。POST 校验失败时保留 `{error:{code,message},request_id}` 包装并附 `error.issues`；其他错误不额外返回此字段。14b 前端 `ApiError.issues` 解析该字段，发布被拒时直接展示问题列表并重新预检。
 
 ### 评委预览、会话与重置（提交 08，已实现）
 

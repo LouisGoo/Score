@@ -1,20 +1,36 @@
 export const API_PREFIX = '/api/v1'
 const DEFAULT_TIMEOUT_MS = 15_000
 
+/** 业务校验问题（如发布检查）；field 为点分隔定位，数组索引从 0 开始。 */
+export interface ApiIssue {
+  code: string
+  message: string
+  field: string
+}
+
 /** 统一的接口错误；status 为 0 表示请求未得到服务端响应，结果可能未知。 */
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly requestId: string | null
   readonly retryAfter: number | null
+  readonly issues: ApiIssue[]
 
-  constructor(status: number, code: string, message: string, requestId: string | null = null, retryAfter: number | null = null) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    requestId: string | null = null,
+    retryAfter: number | null = null,
+    issues: ApiIssue[] = [],
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.requestId = requestId
     this.retryAfter = retryAfter
+    this.issues = issues
   }
 
   /** 请求是否可能已在服务端生效（超时或连接中断）；此时不能直接判定失败。 */
@@ -38,21 +54,31 @@ function retryAfterSeconds(response: Response): number | null {
   return Number.isFinite(value) && value > 0 ? value : null
 }
 
+function parseIssues(value: unknown): ApiIssue[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (item): item is ApiIssue =>
+      !!item && typeof item.code === 'string' && typeof item.message === 'string' && typeof item.field === 'string',
+  )
+}
+
 async function toApiError(response: Response): Promise<ApiError> {
   const requestId = response.headers.get('X-Request-ID')
   let code = 'HTTP_ERROR'
   let message = '请求无法处理'
+  let issues: ApiIssue[] = []
   try {
     const body: unknown = await response.json()
     if (body && typeof body === 'object' && 'error' in body) {
-      const error = (body as { error: { code?: unknown; message?: unknown } }).error
+      const error = (body as { error: { code?: unknown; message?: unknown; issues?: unknown } }).error
       if (typeof error.code === 'string') code = error.code
       if (typeof error.message === 'string') message = error.message
+      issues = parseIssues(error.issues)
     }
   } catch {
     // 非 JSON 响应（如代理错误页）按通用错误处理。
   }
-  return new ApiError(response.status, code, message, requestId, retryAfterSeconds(response))
+  return new ApiError(response.status, code, message, requestId, retryAfterSeconds(response), issues)
 }
 
 /** 同源调用 /api/v1；不自动重试，重试策略由调用方按操作是否幂等决定。 */

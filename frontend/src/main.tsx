@@ -15,7 +15,7 @@ const router = createBrowserRouter(routes)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ConfigProvider locale={zhCN} theme={theme}>
+    <ConfigProvider locale={zhCN} theme={theme} button={{ autoInsertSpace: false }}>
       <AntApp>
         <QueryClientProvider client={queryClient}>
           <RouterProvider router={router} />
