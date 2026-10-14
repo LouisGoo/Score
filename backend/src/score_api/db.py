@@ -111,12 +111,25 @@ class Database:
     def __init__(self, settings: Settings, role: Literal["api", "worker"] = "api"):
         self.engine = create_db_engine(settings, role)
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)
+        self.snapshot_sessions = sessionmaker(
+            self.engine.execution_options(isolation_level="REPEATABLE READ"),
+            expire_on_commit=False,
+        )
         self.expected_heads = set(ScriptDirectory(str(MIGRATIONS)).get_heads())
 
     @contextmanager
     def transaction(self) -> Iterator[Session]:
         """正常退出提交，异常回滚；两条路径均关闭会话并归还连接。"""
         with self.sessions.begin() as session:
+            yield session
+
+    @contextmanager
+    def read_snapshot(self) -> Iterator[Session]:
+        """只读一致性读：InnoDB 在首条查询建立读视图，后续查询共用，不加行锁也不等待写事务。
+
+        仅用于不写入的读取；需要锁内校验的写路径仍使用 transaction()。
+        """
+        with self.snapshot_sessions.begin() as session:
             yield session
 
     def is_ready(self) -> bool:

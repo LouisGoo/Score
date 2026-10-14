@@ -319,7 +319,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 ### 角色快照、大屏授权与展示（13）
 
-所有快照要求活动已发布，草稿返回 409 `EVENT_NOT_PUBLISHED`。读快照持有活动锁，确保同一个版本下的进度、评分与结果一致，响应 `Cache-Control: no-store`，包含 `server_time`。路径明确区分角色，不能通过查询参数切换权限。
+所有快照要求活动已发布，草稿返回 409 `EVENT_NOT_PUBLISHED`。快照在 REPEATABLE READ 只读事务的单一 InnoDB 读视图中读取（13a），版本与进度、评分、结果来自同一已提交状态；不持行锁，不等待也不阻塞评分提交和任务控制，看不到未提交的写入。响应 `Cache-Control: no-store`，包含 `server_time`。路径明确区分角色，不能通过查询参数切换权限。
 
 | 方法与路径（省略 /api/v1） | 授权与响应 |
 | --- | --- |
@@ -331,7 +331,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 | DELETE /events/{id}/screen-grants/{grant_id} | owner + Origin/CSRF；204，重复撤销同一授权仍 204，其他活动的授权 404 |
 | PUT /events/{id}/screen | owner + Origin/CSRF；完整 ScreenSettings，返回 ScreenDisplay |
 
-评委响应不含他人的评分、回执、缺交评委明细或未公布汇总分。大屏不含个人评分、回执、评委名单或任何身份凭证；只有任务状态为 PUBLISHED 的成绩可输出。只读授权不能调用管理、评委、提交、结果历史接口。授权每次读取都在锁内核验摘要、撤销及到期时间；不接受 URL 查询参数中的 token，公开活动码也不能充当授权。数据库仅保存随机 256 位 token 的 SHA-256 摘要；客户端可在未来大屏页面的 fragment 中传递 token，读取后清除，调用 API 时使用请求头。最大同时有效授权 20 个，超出返回 `SCREEN_GRANT_LIMIT`。
+评委响应不含他人的评分、回执、缺交评委明细或未公布汇总分。大屏不含个人评分、回执、评委名单或任何身份凭证；只有任务状态为 PUBLISHED 的成绩可输出。只读授权不能调用管理、评委、提交、结果历史接口。授权每次读取都在同一读视图中核验摘要、撤销及到期时间，撤销或凭证重置提交后的读取立即拒绝；不接受 URL 查询参数中的 token，公开活动码也不能充当授权。数据库仅保存随机 256 位 token 的 SHA-256 摘要；客户端可在未来大屏页面的 fragment 中传递 token，读取后清除，调用 API 时使用请求头。最大同时有效授权 20 个，超出返回 `SCREEN_GRANT_LIMIT`。
 
 展示请求必填：`expected_version`（管理活动版本）、`mode`、`title`、`theme`（light/dark）、`show_public_qr`、`leaderboard_limit`；`round_id` 在 progress/paused/result 模式必填，其他模式必须为空。任务必须属于当前活动，并分别处于 OPEN/PAUSED/PUBLISHED；ended 要求活动已结束或归档，否则 409 `DISPLAY_STATE_CONFLICT`。展示字段不修改冻结规则和名单，结束后仍可切换已公布单项成绩。
 

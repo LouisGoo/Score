@@ -258,26 +258,24 @@ def exchange(database, settings, clock, source, body, bootstrap, old_token, requ
     return token, result
 
 
-def lock_principal(session, principal, clock):
-    """业务写事务应复用：取得活动/评委锁后再次验证会话，阻止与重置竞争。"""
-    event = session.scalar(
-        select(Event)
-        .where(Event.id == principal.event_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
+def lock_principal(session, principal, clock, write=True):
+    """业务写事务应复用：取得活动/评委锁后再次验证会话，阻止与重置竞争。
+
+    write=False 仅供只读快照，在同一读视图中校验会话而不加锁。
+    """
+
+    def load(query):
+        if write:
+            query = query.with_for_update()
+        return session.scalar(query.execution_options(populate_existing=True))
+
+    event = load(select(Event).where(Event.id == principal.event_id))
+    judge = load(
+        select(EventJudge).where(
+            EventJudge.id == principal.judge_id, EventJudge.event_id == principal.event_id
+        )
     )
-    judge = session.scalar(
-        select(EventJudge)
-        .where(EventJudge.id == principal.judge_id, EventJudge.event_id == principal.event_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    row = session.scalar(
-        select(JudgeSession)
-        .where(JudgeSession.token_hash == principal.token_hash)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
+    row = load(select(JudgeSession).where(JudgeSession.token_hash == principal.token_hash))
     if (
         row is None
         or judge is None

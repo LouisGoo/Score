@@ -231,14 +231,12 @@ def test_revoked_judge_cannot_reuse_resolved_principal(scoring, clients, event_d
     assert error.value.status == 401
 
 
-def test_screen_waiting_for_lock_rechecks_revocation(scoring, clients, event_db):
+def test_screen_snapshot_skips_held_lock_and_sees_committed_revocation(scoring, clients, event_db):
     db, _ = event_db
     event_id = scoring[0]["event"]["id"]
     credential = grant(clients[0], event_id)
-    entered = Signal()
 
     def read():
-        entered.set()
         return service.screen_snapshot(
             db, credential["id"], credential["token"], lambda: scoring[2]
         )
@@ -246,11 +244,11 @@ def test_screen_waiting_for_lock_rechecks_revocation(scoring, clients, event_db)
     with ThreadPoolExecutor(1) as pool:
         with db.transaction() as session:
             session.scalar(select(Event).where(Event.id == event_id).with_for_update())
-            future = pool.submit(read)
-            assert entered.wait(1)
             session.get(ScreenGrant, credential["id"]).revoked_at = scoring[2]
+            session.flush()
+            assert pool.submit(read).result(timeout=2).event.id == event_id
         with pytest.raises(APIError) as error:
-            future.result()
+            read()
         assert error.value.status == 401
 
 
@@ -358,25 +356,27 @@ def test_bearer_alone_cannot_read_management_or_write(scoring, clients):
         )
 
 
-def test_snapshot_blocks_on_event_and_observes_committed_revision(scoring, clients, event_db):
+def test_snapshot_does_not_wait_for_uncommitted_submission(scoring, clients, event_db):
     from score_api.ballots import service as ballot_service
     from score_api.ballots.schemas import BallotInput
 
     db, _ = event_db
     event_id = scoring[0]["event"]["id"]
+    owner_id = scoring[0]["event"]["owner_id"]
     rid = scoring[0]["rounds"][0]["id"]
     actor = principal(scoring, db)
+    before = service.judge_snapshot(db, actor, event_id, lambda: scoring[2])
     entered, release = Signal(), Signal()
     errors = []
 
     def hold_after_insert(*_):
         entered.set()
-        if not release.wait(2):
+        if not release.wait(5):
             errors.append("lock test timed out")
 
     sa_event.listen(OutboxEvent, "after_insert", hold_after_insert)
     try:
-        with ThreadPoolExecutor(2) as pool:
+        with ThreadPoolExecutor(3) as pool:
             saved = pool.submit(
                 ballot_service.submit_ballot,
                 db,
@@ -388,12 +388,35 @@ def test_snapshot_blocks_on_event_and_observes_committed_revision(scoring, clien
                 lambda: scoring[2],
             )
             assert entered.wait(2)
-            snapshot = pool.submit(service.judge_snapshot, db, actor, event_id, lambda: scoring[2])
+            during = pool.submit(
+                service.judge_snapshot, db, actor, event_id, lambda: scoring[2]
+            ).result(timeout=2)
+            admin = pool.submit(
+                service.admin_snapshot, db, owner_id, event_id, lambda: scoring[2]
+            ).result(timeout=2)
             release.set()
-            receipt, result = saved.result(), snapshot.result()
+            receipt = saved.result()
     finally:
         release.set()
         sa_event.remove(OutboxEvent, "after_insert", hold_after_insert)
     assert not errors
-    assert result.my_ballots[0].receipts[0] == receipt
-    assert next(r for r in result.rounds if r.id == rid).submitted_count == 1
+    assert during == before
+    assert admin.ballots == []
+    assert next(r for r in admin.rounds if r.id == rid).submitted_count == 0
+    after = service.judge_snapshot(db, actor, event_id, lambda: scoring[2])
+    assert after.version == before.version + 1
+    assert after.my_ballots[0].receipts[0] == receipt
+    assert next(r for r in after.rounds if r.id == rid).submitted_count == 1
+
+
+def test_open_snapshot_keeps_one_read_view_without_blocking_writes(scoring, clients, event_db):
+    db, _ = event_db
+    event_id = scoring[0]["event"]["id"]
+    owner_id = scoring[0]["event"]["owner_id"]
+    with db.read_snapshot() as session:
+        first = service.public_data(session, session.get(Event, event_id))[1][0]
+        assert put(scoring).status_code == 200
+        again = service.public_data(session, session.get(Event, event_id))[1][0]
+    assert first.submitted_count == again.submitted_count == 0
+    fresh = service.admin_snapshot(db, owner_id, event_id, lambda: scoring[2])
+    assert fresh.rounds[0].submitted_count == 1

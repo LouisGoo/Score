@@ -1,4 +1,4 @@
-"""在活动锁内读取一致快照；各角色显式构造白名单响应。"""
+"""在单一读视图中无锁读取一致快照；各角色显式构造白名单响应。"""
 
 import secrets
 from datetime import timedelta
@@ -174,8 +174,8 @@ def grant_list(session, event_id):
 
 
 def admin_snapshot(database, owner_id, event_id, clock):
-    with database.transaction() as session:
-        event = owned_event(session, owner_id, event_id, write=True, draft_only=False)
+    with database.read_snapshot() as session:
+        event = owned_event(session, owner_id, event_id, draft_only=False)
         require_published(event)
         snapshot = session.scalar(select(EventSnapshot).where(EventSnapshot.event_id == event_id))
         entries, rounds, results, _, ranking = public_data(session, event)
@@ -208,8 +208,8 @@ def admin_snapshot(database, owner_id, event_id, clock):
 def judge_snapshot(database, principal, event_id, clock):
     if principal.event_id != event_id:
         raise APIError(404, "NOT_FOUND", "活动不存在")
-    with database.transaction() as session:
-        event, judge, _ = lock_principal(session, principal, clock)
+    with database.read_snapshot() as session:
+        event, judge, _ = lock_principal(session, principal, clock, write=False)
         snapshot = session.scalar(select(EventSnapshot).where(EventSnapshot.event_id == event_id))
         _, rounds, _, published, ranking = public_data(session, event)
         result = JudgeSnapshot(
@@ -232,12 +232,9 @@ def judge_snapshot(database, principal, event_id, clock):
 def screen_snapshot(database, grant_id, token, clock):
     if not TOKEN_PATTERN.fullmatch(token):
         raise APIError(401, "SCREEN_GRANT_INVALID", "大屏授权无效或已到期")
-    with database.transaction() as session:
-        event_id = session.scalar(select(ScreenGrant.event_id).where(ScreenGrant.id == grant_id))
-        event = session.scalar(select(Event).where(Event.id == event_id).with_for_update())
-        grant = session.scalar(
-            select(ScreenGrant).where(ScreenGrant.id == grant_id).with_for_update()
-        )
+    with database.read_snapshot() as session:
+        grant = session.get(ScreenGrant, grant_id)
+        event = session.get(Event, grant.event_id) if grant is not None else None
         now = clock()
         if (
             event is None

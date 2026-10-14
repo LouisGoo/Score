@@ -17,6 +17,8 @@
 - [收评与结果 review](./docs/review-11.md)
 - [自动收评 worker review](./docs/review-12.md)
 - [角色快照与大屏授权 review](./docs/review-13.md)
+- [快照无锁一致性读 review](./docs/review-13a.md)
+- [Web 前端开发计划](./docs/frontend-plan.md)
 - [当前目录重构 review](./docs/review-auth-refactor.md)
 
 ## 环境与目录
