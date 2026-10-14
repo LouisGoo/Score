@@ -19,12 +19,9 @@ describe('routes', () => {
     expect(screen.getByRole('link', { name: '主办方登录' })).toHaveAttribute('href', '/admin/login')
   })
 
-  it.each([
-    ['/screen/g1', '现场大屏', '17'],
-  ])('lazy-loads %s', async (path, title, batch) => {
-    renderAt(path)
-    expect(await screen.findByText(title)).toBeInTheDocument()
-    expect(screen.getByText(`该页面将在 ${batch} 批次实现`)).toBeInTheDocument()
+  it('requires a full grant link to open the screen', async () => {
+    renderAt('/screen/g1')
+    expect(await screen.findByText('请使用完整的大屏链接')).toBeInTheDocument()
   })
 
   it('redirects /admin to the event list', async () => {

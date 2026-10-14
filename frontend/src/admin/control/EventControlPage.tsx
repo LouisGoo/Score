@@ -10,6 +10,7 @@ import { defaultRoundId, isTerminal, roundName, unfinishedHint, unfinishedRounds
 import { RoundList } from './RoundList'
 import { RoundPanel } from './RoundPanel'
 import { SnapshotFailure } from './SnapshotFailure'
+import { ScreenManager } from './ScreenManager'
 
 export function EventControlPage() {
   const { eventId = '' } = useParams()
@@ -18,6 +19,7 @@ export function EventControlPage() {
   const snapshot = useConsoleSnapshot(eventId, { poll: true })
   // 结束被拒时的待处理任务 ID；渲染时按最新快照映射为对象，未知 ID 原样显示。
   const [unfinished, setUnfinished] = useState<string[] | null>(null)
+  const [screenOpen, setScreenOpen] = useState(false)
   const action = useConsoleAction(eventId, setUnfinished)
 
   if (snapshot.isPending) return <Spin className="page-spin" size="large" />
@@ -72,6 +74,7 @@ export function EventControlPage() {
           <Tag color={eventStatusLabel[event.status].color}>{eventStatusLabel[event.status].text}</Tag>
         </Space>
         <Space wrap>
+          <Button onClick={() => setScreenOpen(true)}>大屏管理</Button>
           <Link to={`/admin/events/${eventId}/results`}><Button>成绩与记录</Button></Link>
           <Link to={`/admin/events/${eventId}/settings`}><Button>活动设置</Button></Link>
           {live && <Button danger disabled={action.isPending} onClick={confirmFinish}>结束活动</Button>}
@@ -86,8 +89,8 @@ export function EventControlPage() {
           type="info"
           showIcon
           className="form-alert"
-          title={event.status === 'ARCHIVED' ? '活动已归档，控制台只读' : '活动已结束，控制台只读'}
-          description="可以在“成绩与记录”中查看最终排名和各对象的收评记录。"
+          title={event.status === 'ARCHIVED' ? '活动已归档，评分只读' : '活动已结束，评分只读'}
+          description="可以查看成绩与记录，也可继续管理大屏授权和展示内容。"
         />
       )}
 
@@ -116,6 +119,7 @@ export function EventControlPage() {
           onClose={() => setUnfinished(null)}
         />
       )}
+      {screenOpen && <ScreenManager snapshot={data} onClose={() => setScreenOpen(false)} />}
     </>
   )
 }

@@ -22,6 +22,10 @@ import type {
   RoundState,
   SessionInfo,
   SkipInput,
+  CreatedGrant,
+  GrantInfo,
+  ScreenDisplay,
+  ScreenSettings,
 } from './types'
 
 const sessionCsrf = memoryToken()
@@ -156,4 +160,16 @@ export const adminConsole = {
     adminApi.send<EventInfo>('POST', `${eventPath(eventId)}/finish`, { expected_version: version }),
   archive: (eventId: string, version: number) =>
     adminApi.send<EventInfo>('POST', `${eventPath(eventId)}/archive`, { expected_version: version }),
+}
+
+/** Grant tokens are returned only once: keep create results in component state, never query/mutation data. */
+export const adminScreens = {
+  create: (eventId: string, ttlSeconds: number) =>
+    adminApi.send<CreatedGrant>('POST', `${eventPath(eventId)}/screen-grants`, { ttl_seconds: ttlSeconds }),
+  list: (eventId: string, signal?: AbortSignal) =>
+    adminApi.get<GrantInfo[]>(`${eventPath(eventId)}/screen-grants`, { signal }),
+  revoke: (eventId: string, grantId: string) =>
+    adminApi.send<void>('DELETE', `${eventPath(eventId)}/screen-grants/${id(grantId)}`),
+  display: (eventId: string, body: ScreenSettings) =>
+    adminApi.send<ScreenDisplay>('PUT', `${eventPath(eventId)}/screen`, body),
 }

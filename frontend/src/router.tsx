@@ -48,7 +48,10 @@ export const routes: RouteObject[] = [
           { path: 'judge/events/:eventId/history', lazy: page(judge, 'JudgeHistoryPage') },
         ],
       },
-      { path: 'screen/:grantId', lazy: page(screen, 'ScreenPage') },
+      { path: 'screen/:grantId', lazy: async () => {
+        const module = await screen()
+        return { Component: module.ScreenPage, loader: module.screenLoader }
+      } },
       { path: '*', element: <NotFound /> },
     ],
   },
