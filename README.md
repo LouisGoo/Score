@@ -22,6 +22,7 @@
 - [前端基础层 review](./docs/review-14a.md)
 - [14b 后端缺口 review](./docs/review-14b-backend.md)
 - [14b 主办方登录与活动编辑 review](./docs/review-14b.md)
+- [15 评分控制台 review](./docs/review-15.md)
 - [当前目录重构 review](./docs/review-auth-refactor.md)
 
 ## 环境与目录

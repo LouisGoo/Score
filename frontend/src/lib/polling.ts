@@ -4,6 +4,8 @@
  */
 export const POLL_INTERVAL_MS = {
   admin: 3000,
+  /** 控制台没有评分中/暂停任务时放宽：管理快照含全部评分历史，此时只有他处操作才会改变状态。 */
+  adminIdle: 10000,
   screen: 3000,
   judge: 5000,
 } as const

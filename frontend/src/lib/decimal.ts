@@ -26,6 +26,11 @@ export function scoreError(value: string, criterion: CriterionRule): string | nu
   return null
 }
 
+/** 高精度分数（如收评快照中的个人总分）按两位小数 ROUND_HALF_UP 展示，与后端展示值一致。 */
+export function formatScore(value: string): string {
+  return new Exact(value).round(2, Big.roundHalfUp).toFixed(2)
+}
+
 /**
  * 个人百分制总分预览：100 × Σ(x / M × w)，两位小数 ROUND_HALF_UP。
  * 与后端相同先通分：分子精确累加，最后只做一次除法，避免中间舍入改变边界结果。

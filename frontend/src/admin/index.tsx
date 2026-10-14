@@ -3,7 +3,6 @@ import { LogoutOutlined } from '@ant-design/icons'
 import { useMutation } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from 'react-router'
 import { adminAuth } from '../api/admin'
-import { Pending } from '../components/Pending'
 import { LOGIN_PATH, useForgetAdmin, useSessionQuery } from './session'
 
 export { AdminGuard } from './session'
@@ -11,6 +10,8 @@ export { LoginPage } from './LoginPage'
 export { EventListPage } from './EventListPage'
 export { EventCreatePage } from './EventCreatePage'
 export { EventSettingsPage } from './settings/EventSettingsPage'
+export { EventControlPage } from './control/EventControlPage'
+export { EventResultsPage } from './control/EventResultsPage'
 
 /** 主办方模块入口：仅在访问 /admin 时加载，手机评委端不下载此分包。 */
 export function AdminLayout() {
@@ -54,6 +55,3 @@ function AccountMenu() {
     </Space>
   )
 }
-
-export const EventControlPage = () => <Pending title="主持人控制台" batch="15" />
-export const EventResultsPage = () => <Pending title="成绩与记录" batch="15" />

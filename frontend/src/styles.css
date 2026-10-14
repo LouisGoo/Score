@@ -41,6 +41,35 @@ body { margin: 0; min-width: 320px; }
 .entry-note { margin: 12px 0 0; }
 .request-id { font-size: 12px; opacity: .75; margin-top: 4px; }
 
+.console-meta { margin: -4px 0 16px; }
+.round-list, .judge-list { list-style: none; margin: 0; padding: 0; }
+.round-list li + li { margin-top: 4px; }
+.round-item {
+  display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 8px 10px;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; font: inherit;
+}
+.round-item:hover { background: #f5f4ef; }
+.round-item.selected { border-color: #2f6b5a; background: #eef4f0; }
+.round-item:focus-visible { outline: 2px solid #2f6b5a; outline-offset: 1px; }
+.round-item-name { overflow-wrap: anywhere; }
+.round-item-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.round-description { margin: 4px 0 0 !important; }
+.round-status { font-size: 14px; padding: 2px 10px; margin: 0; }
+.round-stats { margin: 20px 0; }
+.round-stats .ant-progress { width: 120px; margin: 0; }
+.countdown-expired .ant-statistic-content { color: #c2410c; }
+.round-actions { margin-bottom: 8px; }
+.round-result { margin-top: 20px; }
+.next-round { padding-left: 0; margin-top: 12px; }
+.dialog-description { margin-bottom: 16px; }
+.dialog-note { margin: 8px 0 0 !important; }
+.judge-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+.judge-state { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.judge-state .ant-tag { margin: 0; }
+.judge-time { font-size: 12px; }
+.judge-note { margin: 12px 0 0 !important; font-size: 12px; }
+.result-history + .result-history { margin-top: 20px; }
+
 .login-page { min-height: calc(100vh - 112px); display: flex; align-items: center; justify-content: center; }
 .login-card { width: 100%; max-width: 400px; }
 

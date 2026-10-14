@@ -20,7 +20,6 @@ describe('routes', () => {
   })
 
   it.each([
-    ['/admin/events/e1/control', '主持人控制台', '15'],
     ['/join/ABCDEFGH2345', '加入活动', '16'],
     ['/judge/events/e1/history', '本人记录', '16'],
     ['/screen/g1', '现场大屏', '17'],

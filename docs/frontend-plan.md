@@ -20,7 +20,7 @@
 | `/admin/events`、`/admin/events/new` | 14b | `GET/POST events`、`POST events/{id}/copy`、`DELETE events/{id}` |
 | `/admin/events/:id/settings` | 14b | `PATCH events/{id}`、`entries`/`judges` 子资源、`PUT .../credential`、`POST .../reset-credential`、`POST events/{id}/publish`、`GET events/{id}/publication` |
 | `/admin/events/:id/control` | 15 | `GET events/{id}/snapshot`、`POST rounds/{id}/open\|pause\|resume\|skip\|close\|reopen\|publish-result\|no-result`、`POST events/{id}/finish\|archive` |
-| `/admin/events/:id/results` | 15 | `GET rounds/{id}/results`、`GET events/{id}/ranking`；导出入口留待 20 |
+| `/admin/events/:id/results` | 15 | `GET events/{id}/snapshot`（含收评快照、评分历史与排名，与控制台同一读视图）；导出入口留待 20 |
 | 大屏管理（控制台内） | 17 | `POST/GET/DELETE events/{id}/screen-grants`、`PUT events/{id}/screen` |
 | `/join`、`/join/:publicCode` | 16 | `GET join/{code}`、`GET judge-sessions/csrf`、`POST judge-sessions/verify`、`POST judge-sessions/exchange` |
 | `/judge/events/:id`、`.../history` | 16 | `GET judge-sessions/me`、`GET judge/events/{id}/snapshot`、`PUT/GET rounds/{id}/my-ballot`、`POST judge-sessions/logout` |
@@ -34,10 +34,10 @@
 | G2 | 活动列表缺对象数、任务完成进度（需求 6.1） | 已补，前端已接入 | 14b，见 [后端](review-14b-backend.md)、[前端](review-14b.md) |
 | G3 | 发布校验仅两条笼统 `PUBLISH_INVALID` 消息 | 已补，前端已接入 | 14b，见 [后端](review-14b-backend.md)、[前端](review-14b.md) |
 | G4 | 发布后不能修改活动标题、简介 | 不补 | 用户已确认接受；大屏标题/主题经 `PUT /screen` 修改 |
-| G5 | 无评委在线/离线状态 | 依赖实时 | 15 只展示已交/未交；在线状态随 18 |
+| G5 | 无评委在线/离线状态 | 依赖实时 | 15 已按已交/未交展示；在线状态随 18 |
 | G6 | 无 `PUBLIC_BASE_URL`，二维码地址无来源 | 前端处理 | 14b/17 用构建变量，缺省回退 `location.origin`；22 统一配置 |
-| G7 | `UNFINISHED_ROUNDS` 消息内为任务 ID | 前端处理 | 15 用快照映射对象编号/名称 |
-| G8 | 管理快照每次返回全部评分历史和收评快照 | 暂不补 | P0 规模可接受；控制台放宽轮询间隔，18 后改增量 |
+| G7 | `UNFINISHED_ROUNDS` 消息内为任务 ID | 前端处理 | 15 已用快照映射对象编号/名称，结束前另做本地检查 |
+| G8 | 管理快照每次返回全部评分历史和收评快照 | 暂不补 | P0 规模可接受；15 控制台有进行中对象时 3 秒、其余 10 秒、结束后停止，18 后改增量 |
 | G9 | `GET my-ballot` 仍持活动锁 | 保持 | 仅超时核验时调用，不轮询 |
 
 G2：列表响应使用继承 `EventInfo` 的 `EventListItem`，增加 `entry_count`、`judge_count`、`round_count`、`finished_round_count`（终态任务数）。一条 SQL 完成，草稿任务计数为 0，避免前端逐个活动拉名单；其他 `EventInfo` 响应保持原结构。
@@ -114,7 +114,9 @@ frontend/src/
 - 默认：后端 `127.0.0.1:8000`，前端 `npm run dev`，Vite 代理 `/api`。登录账号用 CLI 在目标库建立。
 - 手机真机（16 起）：`npm run dev -- --host 0.0.0.0`，在 `SCORE_ALLOWED_ORIGINS` 加入 `http://<局域网 IP>:5173`，保持 `SCORE_COOKIE_SECURE=false`；后端仍只监听本机，由 Vite 代理转发。生产 HTTPS 与 Secure Cookie 在 22 验证。
 - 前端联调使用远端数据库（用户已确认），会写入测试活动；测试活动建议标题统一加“联调”前缀，便于识别和归档。远端连接受本机网络代理影响，ready 返回 503 时先检查 TLS 握手是否被代理（如 TUN 模式）阻断。
+- 远端账号限每小时 36000 条语句（`max_questions`），超限后 503 直至窗口重置；每次快照约 20 条。联调时少开标签页，模拟评委脚本放慢轮询，见 [Review 15](review-15.md)。
 
 ## 7. 待确认
 
-- 14b 页面已完成待 review，见 [Review 14b](review-14b.md)。其中“发布后的身份码重置”放在设置页的评委页签，15 控制台可复用同一对话框。
+- 14b 已提交，见 [Review 14b](review-14b.md)。15 控制台的“重置身份码”入口跳转到设置页评委页签，复用同一对话框。
+- 15 控制台与成绩页已完成待 review，见 [Review 15](review-15.md)。成绩页改用管理快照（第 2 节表格已更新）。
