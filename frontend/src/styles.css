@@ -73,8 +73,6 @@ body { margin: 0; min-width: 320px; }
 .login-page { min-height: calc(100vh - 112px); display: flex; align-items: center; justify-content: center; }
 .login-card { width: 100%; max-width: 400px; }
 
-.judge-layout { max-width: 480px; min-height: 100vh; margin: 0 auto; padding: 16px; }
-
 .screen-layout { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
 
 @media (max-width: 640px) {

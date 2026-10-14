@@ -1,10 +1,13 @@
-import { createClient, memoryToken, request } from './client'
-import type { CSRFInfo, ConfirmationInfo, JudgeSessionInfo, PreviewInfo } from './types'
+import { ApiError, createClient, memoryToken, request } from './client'
+import type { BallotInput, BallotReceipt, CSRFInfo, ConfirmationInfo, JudgeSessionInfo, JudgeSnapshot, PreviewInfo } from './types'
 
 const bootstrapCsrf = memoryToken()
 const sessionCsrf = memoryToken()
+let sessionIdentity: string | null = null
+const identityOf = (info: JudgeSessionInfo) => `${info.judge.event_id}:${info.judge.id}`
 
 function remember(info: JudgeSessionInfo): JudgeSessionInfo {
+  sessionIdentity = identityOf(info)
   sessionCsrf.set(info.csrf_token)
   return info
 }
@@ -48,6 +51,7 @@ export const judgeAuth = {
     }
   },
   forget() {
+    sessionIdentity = null
     sessionCsrf.set(null)
     bootstrapCsrf.set(null)
   },
@@ -57,7 +61,29 @@ export const judgeApi = createClient({
   csrf: {
     get: sessionCsrf.get,
     refresh: async () => {
-      await judgeAuth.me()
+      const expectedIdentity = sessionIdentity
+      const info = await request<JudgeSessionInfo>('/judge-sessions/me')
+      if (expectedIdentity && identityOf(info) !== expectedIdentity) {
+        sessionCsrf.set(null)
+        throw new ApiError(401, 'SESSION_EXPIRED', '评委身份已在其他页面切换，请重新确认身份')
+      }
+      remember(info)
     },
   },
 })
+
+export const judgeScoring = {
+  snapshot(eventId: string, signal?: AbortSignal) {
+    return judgeApi.get<JudgeSnapshot>(`/judge/events/${encodeURIComponent(eventId)}/snapshot`, { signal })
+  },
+  submit(roundId: string, body: BallotInput, key: string) {
+    return judgeApi.send<BallotReceipt>('PUT', `/rounds/${encodeURIComponent(roundId)}/my-ballot`, body, {
+      headers: { 'Idempotency-Key': key },
+    })
+  },
+  receipt(roundId: string, key: string) {
+    return judgeApi.get<BallotReceipt>(`/rounds/${encodeURIComponent(roundId)}/my-ballot`, {
+      headers: { 'Idempotency-Key': key },
+    })
+  },
+}

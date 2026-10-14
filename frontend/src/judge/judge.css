@@ -1,0 +1,59 @@
+/* Fluid single column: width and height are independent; no device/aspect-ratio assumptions. */
+.judge-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow-wrap: anywhere;
+}
+.judge-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.judge-layout h1 { font-size: clamp(22px, 5vw, 30px); line-height: 1.35; margin: 0; }
+.judge-layout h2 { font-size: 21px; line-height: 1.4; margin: 8px 0 12px; }
+.judge-layout h3 { font-size: 17px; margin: 8px 0; }
+.judge-layout p { margin-block: 8px; }
+.judge-layout header p { margin: 0; }
+.judge-layout .ant-card .ant-card-body { padding: clamp(16px, 4vw, 24px); }
+.judge-layout .ant-input, .judge-layout .ant-input-affix-wrapper { font-size: 16px; }
+.judge-layout .ant-input, .judge-layout .ant-input-affix-wrapper, .judge-layout .ant-btn,
+.judge-confirm .ant-btn { min-height: 44px; }
+.judge-layout .ant-btn, .judge-confirm .ant-btn { height: auto; white-space: normal; }
+.judge-layout .ant-alert { min-width: 0; }
+.judge-layout .ant-alert-content { min-width: 0; }
+.judge-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.judge-actions > * { min-width: 0; max-width: 100%; }
+.judge-actions > strong { flex: 1 1 160px; }
+.judge-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 4px; }
+.judge-link.active { font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
+.judge-muted, .judge-eyebrow { color: #59675f; font-size: 13px; }
+.judge-description { white-space: pre-wrap; }
+.judge-round-heading { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; color: #2f6b5a; font-weight: 600; }
+.judge-countdown { font-variant-numeric: tabular-nums; }
+.judge-notice { margin-block: 12px; }
+.judge-field { margin-top: 24px; }
+.judge-field label { display: block; font-weight: 600; }
+.judge-score-input { display: flex; align-items: stretch; gap: 8px; }
+.judge-score-input .ant-btn { flex: 0 0 44px; font-size: 22px; padding: 4px; }
+.judge-score-input .ant-input { flex: 1 1 0; min-width: 0; text-align: center; font-size: 22px; font-variant-numeric: tabular-nums; }
+.judge-field-error { color: #b42318; font-size: 13px; min-height: 20px; margin-top: 4px; }
+/* Normal flow keeps fields reachable with a soft keyboard or a short landscape viewport. */
+.judge-submit-bar { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #dce3df; }
+.judge-submit-bar p { margin: 0 0 4px; }
+.judge-total { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.judge-total strong { font-size: 28px; font-variant-numeric: tabular-nums; }
+.judge-score-list { margin: 12px 0; }
+.judge-score-list > div { display: flex; gap: 12px; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #edf0ed; }
+.judge-score-list dt { min-width: 0; overflow-wrap: anywhere; }
+.judge-score-list dd { margin: 0; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.judge-receipt { border-left: 3px solid #2f6b5a; padding-left: 12px; margin-block: 16px; }
+.judge-receipt-id { overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
+.judge-layout summary { cursor: pointer; min-height: 44px; padding: 12px 0; }
+.judge-confirm { max-width: calc(100vw - 24px); top: 24px; padding-bottom: max(24px, env(safe-area-inset-bottom)); overflow-wrap: anywhere; }
+.judge-confirm .ant-modal-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.judge-confirm .ant-modal-footer .ant-btn { margin: 0; }
+@media (max-width: 374px) {
+  .judge-layout { padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); }
+}
