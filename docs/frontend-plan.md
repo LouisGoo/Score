@@ -8,6 +8,8 @@
 - 前端：仅 `App.tsx` 连接检查骨架；依赖只有 React 19.3、Vite 8.3、TypeScript 7.0.2；无路由、请求状态、二维码、测试或 lint；CI 只执行 `npm run build`。
 - TypeScript 7.0.2 为原生编译器，不再提供 TS 5 的 JS 编译器 API。依赖该 API 的工具（如 `openapi-typescript`、`typescript-eslint`）需在 14a 实测兼容性，不能默认可用。
 
+2026-10-14 用户确认：接受“发布后仅可改大屏展示字段”（G4 不补）；管理端引入 Ant Design 组件库；前端联调使用远端数据库。14a 已按第 4 节落地，见 [Review 14a](review-14a.md)。
+
 ## 2. 页面与接口对应
 
 路由沿用需求第 10 节；admin、judge、screen 三个模块分别懒加载，手机端不加载管理端代码。
@@ -31,7 +33,7 @@
 | G1 | 三角色快照持活动行锁，轮询与评分提交串行，锁等待 3 秒后 503 | 必须先修 | 13a 已修复：改为无锁一致性读 |
 | G2 | 活动列表缺对象数、任务完成进度（需求 6.1） | 建议补 | 14b，随列表页同提交 |
 | G3 | 发布校验仅两条笼统 `PUBLISH_INVALID` 消息 | 建议补 | 14b，随发布检查页同提交 |
-| G4 | 发布后不能修改活动标题、简介 | 暂不补 | 待确认；大屏标题/主题已可经 `PUT /screen` 修改 |
+| G4 | 发布后不能修改活动标题、简介 | 不补 | 用户已确认接受；大屏标题/主题经 `PUT /screen` 修改 |
 | G5 | 无评委在线/离线状态 | 依赖实时 | 15 只展示已交/未交；在线状态随 18 |
 | G6 | 无 `PUBLIC_BASE_URL`，二维码地址无来源 | 前端处理 | 14b/17 用构建变量，缺省回退 `location.origin`；22 统一配置 |
 | G7 | `UNFINISHED_ROUNDS` 消息内为任务 ID | 前端处理 | 15 用快照映射对象编号/名称 |
@@ -48,9 +50,9 @@ G4 理由：需求 6.1 写明“标题、主题等展示字段可改并留痕”
 
 ### 4.1 工程与依赖
 
-- 新增 React Router（懒加载路由）、TanStack Query、二维码生成库、十进制小数库（个人总分预览用）；开工时选当时稳定且兼容 TS 7 的版本并锁定。
-- 接口类型优先从 `/openapi.json` 生成并提交到仓库，由脚本可复现；若生成工具不兼容 TS 7，用独立临时环境运行生成器，或只为前端实际使用的模型手写类型，并在 review 记录取舍。
-- 测试使用 Vitest + Testing Library；lint 工具需支持 TS 7（可考虑 Oxlint）。CI 前端任务增加测试步骤。
+- 已锁定：Ant Design 6.6.6（含 QRCode 组件，不另装二维码库）及 @ant-design/icons、React Router 8.4（数据路由 + 路由级 `lazy`）、TanStack Query 5.104、big.js 7（个人总分预览）。
+- 接口类型：`npm run gen:api` 从后端应用导出 `src/api/openapi.json`，再在独立 npx 环境用 TypeScript 5.9.3 运行 `openapi-typescript` 生成 `src/api/schema.d.ts`，两者均提交。项目本身不安装 TS 5。后端测试 `test_openapi_contract.py` 比对提交的 JSON 与运行时 OpenAPI，接口变更未重新生成时 CI 失败。
+- 测试使用 Vitest 5 + Testing Library（jsdom）；lint 使用 Oxlint（不依赖 TS 编译器 API）。CI 前端任务依次执行 lint、test、build。
 
 ### 4.2 目录
 
@@ -58,8 +60,9 @@ G4 理由：需求 6.1 写明“标题、主题等展示字段可改并留痕”
 frontend/src/
 ├── main.tsx / router.tsx     入口与懒加载路由
 ├── api/                      fetch 封装、错误解析、生成类型、按角色的接口函数
-├── lib/                      小数预览、服务端时钟偏差、轮询、fragment 读取、草稿存储
-├── components/               跨模块的基础组件
+├── lib/                      小数预览、服务端时钟偏差、轮询、fragment 读取、幂等键、草稿存储
+├── components/               跨模块的基础组件（占位页、路由错误边界）
+├── pages/                    首页（独立懒加载分包）
 ├── admin/                    主办方页面（14b、15、17 的大屏管理）
 ├── judge/                    评委手机页面（16）
 └── screen/                   只读大屏（17）
@@ -110,10 +113,8 @@ frontend/src/
 
 - 默认：后端 `127.0.0.1:8000`，前端 `npm run dev`，Vite 代理 `/api`。登录账号用 CLI 在目标库建立。
 - 手机真机（16 起）：`npm run dev -- --host 0.0.0.0`，在 `SCORE_ALLOWED_ORIGINS` 加入 `http://<局域网 IP>:5173`，保持 `SCORE_COOKIE_SECURE=false`；后端仍只监听本机，由 Vite 代理转发。生产 HTTPS 与 Secure Cookie 在 22 验证。
-- 前端联调会写入业务数据，建议使用本地 Compose MySQL；如需连接远端库，先确认允许写入测试活动。
+- 前端联调使用远端数据库（用户已确认），会写入测试活动；测试活动建议标题统一加“联调”前缀，便于识别和归档。远端连接受本机网络代理影响，ready 返回 503 时先检查 TLS 握手是否被代理（如 TUN 模式）阻断。
 
 ## 7. 待确认
 
-- G2、G3 是否按建议在 14b 补齐；G4 是否接受“发布后仅可改大屏展示字段”。
-- UI 组件库选择：管理端是否引入组件库，或全部自研轻量组件。
-- 前端联调使用的数据库（本地或远端）。
+- G2、G3 按建议在 14b 补齐（随对应页面同提交）。

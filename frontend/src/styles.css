@@ -1,31 +1,32 @@
 :root {
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
   color: #172e29;
   background: #f5f4ef;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  line-height: 1.6;
 }
 * { box-sizing: border-box; }
-body { margin: 0; }
-main { max-width: 1120px; margin: auto; padding: 80px 32px 40px; }
-.eyebrow { font-size: 14px; letter-spacing: .12em; }
-h1 { font-size: clamp(36px, 6vw, 68px); line-height: 1.2; font-weight: 600; margin: 48px 0 24px; }
-.intro { color: #52615c; max-width: 560px; }
-.modules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 64px 0; }
-article { border-top: 2px solid #adc1b5; padding: 24px 0; }
-article span { font-size: 13px; color: #53675d; }
-h2 { font-size: 22px; font-weight: 500; }
-article p, footer { color: #52615c; font-size: 14px; }
-footer { border-top: 1px solid #d6dbd2; padding-top: 16px; }
-.connection { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-[data-state="connected"] { color: #256044; }
-[data-state="unavailable"] { color: #934421; }
-button { min-height: 44px; border: 1px solid #53675d; border-radius: 6px; background: transparent; color: inherit; padding: 8px 16px; cursor: pointer; }
-button:focus-visible { outline: 3px solid #256044; outline-offset: 3px; }
+body { margin: 0; min-width: 320px; }
+
+.home { max-width: 1120px; margin: auto; padding: 80px 32px 40px; }
+.home .eyebrow { font-size: 14px; letter-spacing: .12em; }
+.home .home-title { font-size: clamp(36px, 6vw, 68px); line-height: 1.2; font-weight: 600; margin: 48px 0 24px; }
+.home-intro { max-width: 560px; }
+.home-modules { margin: 64px 0 32px; }
+.home-card { height: 100%; border-top: 2px solid #adc1b5; border-radius: 0; background: transparent; box-shadow: none; }
+
+.admin-layout { min-height: 100vh; }
+.admin-header { display: flex; align-items: center; background: #172e29; padding: 0 24px; }
+.admin-header .brand { color: #fff; font-size: 16px; }
+.admin-content { width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+.judge-layout { max-width: 480px; min-height: 100vh; margin: 0 auto; padding: 16px; }
+
+.screen-layout { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+
 @media (max-width: 640px) {
-  main { padding: 32px 24px; }
-  .modules { grid-template-columns: 1fr; gap: 8px; margin: 40px 0; }
-  h1 { margin-top: 32px; }
+  .home { padding: 32px 24px; }
+  .home .home-title { margin-top: 32px; }
+  .home-modules { margin: 40px 0 24px; }
+  .admin-content { padding: 16px; }
 }

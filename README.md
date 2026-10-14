@@ -19,6 +19,7 @@
 - [角色快照与大屏授权 review](./docs/review-13.md)
 - [快照无锁一致性读 review](./docs/review-13a.md)
 - [Web 前端开发计划](./docs/frontend-plan.md)
+- [前端基础层 review](./docs/review-14a.md)
 - [当前目录重构 review](./docs/review-auth-refactor.md)
 
 ## 环境与目录
@@ -163,8 +164,12 @@ cd backend
 # 完整数据库验收需独立 MySQL 测试库；默认不连接远程业务库。
 SCORE_TEST_DATABASE_URL=mysql+pymysql://score:local-score-only@127.0.0.1:3306/score_test ../.venv/bin/pytest -q
 cd ../frontend
+npm run lint
+npm test
 npm run build
 ```
+
+前端使用 Ant Design、React Router 与 TanStack Query，admin/judge/screen 分模块懒加载，约定见 [前端开发计划](docs/frontend-plan.md)。后端接口变更后，在 `frontend` 目录运行 `npm run gen:api` 重新生成 `src/api/openapi.json` 与 `schema.d.ts`（需仓库根目录的 `.venv`，生成器在独立 npx 环境使用 TypeScript 5），否则后端契约测试失败。
 
 CI 使用 MySQL 8.0.40 服务执行完整后端检查。构建已含 TypeScript 检查。
 未设置 `SCORE_TEST_DATABASE_URL` 时跳过数据库集成测试；指定库名必须以 `_test` 结尾。测试会升降级迁移并创建/删除临时测试表，不可指向正式库。锁测试使用真实 InnoDB，不使用 SQLite 替代。
