@@ -10,6 +10,7 @@ import { ExpiredSession, JudgeError, JudgeGuard } from './session'
 import { pendingSubmissions } from './storage'
 import { ScoreCard } from './ScoreCard'
 import { Receipt } from './Receipt'
+import { SyncButton } from './SyncButton'
 
 function JudgeWorkspace({ session, history }: { session: JudgeSessionInfo; history: boolean }) {
   const query = useJudgeSnapshot(session.judge.event_id, session.judge.id)
@@ -66,7 +67,7 @@ function JudgeWorkspace({ session, history }: { session: JudgeSessionInfo; histo
       <nav className="judge-actions" aria-label="评委导航">
         <Link className={`judge-link ${!history ? 'active' : ''}`} aria-current={!history ? 'page' : undefined} to={`/judge/events/${snapshot.event.id}`}>当前评分</Link>
         <Link className={`judge-link ${history ? 'active' : ''}`} aria-current={history ? 'page' : undefined} to={`/judge/events/${snapshot.event.id}/history`}>本人记录</Link>
-        <Button loading={query.isFetching} onClick={() => void refresh()}>同步状态</Button>
+        <SyncButton fetching={query.isFetching} onSync={() => void refresh()} />
       </nav>
       <p className="judge-muted">{query.syncStatus === 'live' ? '实时同步' : '自动同步'} · 最后同步：{new Date(snapshot.server_time).toLocaleTimeString('zh-CN', { hour12: false })}</p>
     </header>

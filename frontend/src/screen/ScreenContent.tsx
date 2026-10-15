@@ -58,7 +58,7 @@ export function ScreenContent({ snapshot, now }: { snapshot: DisplaySnapshot; no
     <p className="screen-eyebrow">{paused ? '评分已暂停' : '正在评分'} · {round.number}</p><h2>{round.name}</h2>
     <p className="screen-hint screen-round-description">{round.description}</p>
     <div className="screen-progress-stats"><div><p>已交 / 应交</p><strong>{round.submitted_count}<span> / {round.expected_count}</span></strong></div>
-      <div><p>{paused ? '剩余时间已冻结' : '剩余时间'}</p><strong className={remaining === 0 ? 'time-expired' : ''}>{formatCountdown(remaining)}</strong></div></div>
+      <div className="screen-time"><p>{paused ? '剩余时间已冻结' : '剩余时间'}</p><strong className={remaining === 0 ? 'time-expired' : ''}>{formatCountdown(remaining)}</strong></div></div>
     <div className="screen-progress-track" role="progressbar" aria-label="评分提交进度" aria-valuemin={0} aria-valuemax={round.expected_count} aria-valuenow={round.submitted_count}><div style={{ width: `${percent}%` }} /></div>
     <p className="screen-hint">{paused ? '请稍候，主持人恢复后可继续提交。' : remaining === 0 ? '评分时间已到，等待主持人处理。' : '请评委在手机上独立完成评分，成绩将在公布后显示。'}</p>
   </section>

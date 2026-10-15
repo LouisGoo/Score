@@ -74,7 +74,7 @@ function ScreenFeed({ access, onInvalid }: { access: ScreenAccess & { token: str
       </aside>}
     </div> : <section className="screen-empty"><h2>{query.isPending && !stale ? '正在连接现场大屏' : '暂时无法加载展示内容'}</h2><p>连接恢复后将自动同步。</p></section>}
     <footer className="screen-footer">
-      <div role="status"><span className={`screen-dot ${stale ? 'delayed' : ''}`} />{stale ? '连接中，数据可能延迟' : data ? '已同步' : '连接中'}
+      <div role="status"><span className={`screen-dot ${stale ? 'delayed' : ''}`} aria-hidden="true" />{stale ? '连接中，数据可能延迟' : data ? '已同步' : '连接中'}
         {data && <span> · 最后同步 <time dateTime={data.server_time}>{new Date(data.server_time).toLocaleTimeString('zh-CN', { hour12: false })}</time></span>}
         {error && <span className="screen-error-detail">{error.message}{error.requestId ? ` · 请求编号 ${error.requestId}` : ''}</span>}
       </div>

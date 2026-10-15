@@ -1,59 +1,191 @@
-/* Fluid single column: width and height are independent; no device/aspect-ratio assumptions. */
-.judge-layout {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 640px;
+/* Scoped to the judge routes; the fixed backdrop stays stable while scoring scrolls. */
+.judge-surface {
+  --judge-green: #1a5c3a;
+  --judge-text: #0f1f16;
+  --judge-muted: #52665a;
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   min-height: 100dvh;
+  color: var(--judge-text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.judge-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 10% -10%, #d8f0e0 0%, transparent 50%),
+    radial-gradient(90% 70% at 100% 20%, #c9e4ff 0%, transparent 45%),
+    radial-gradient(80% 60% at 50% 110%, #f5e6c8 0%, transparent 50%),
+    linear-gradient(165deg, #e8efe6 0%, #dfe8e4 40%, #e6ebe8 100%);
+}
+.judge-blob { position: absolute; border-radius: 50%; filter: blur(40px); opacity: .55; }
+.judge-blob-a { width: 220px; height: 220px; background: #7ec8a0; top: 8%; left: calc(50% - 235px); }
+.judge-blob-b { width: 280px; height: 280px; background: #9bb8e8; top: 35%; right: calc(50% - 275px); }
+.judge-blob-c { width: 180px; height: 180px; background: #e8d4a8; bottom: 10%; left: calc(50% - 117px); }
+
+/* Fluid single column, including short viewports and the on-screen keyboard. */
+.judge-layout {
+  width: 100%;
+  max-width: 640px;
   margin-inline: auto;
-  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding: max(28px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   overflow-wrap: anywhere;
 }
 .judge-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.judge-layout h1 { font-size: clamp(22px, 5vw, 30px); line-height: 1.35; margin: 0; }
+.judge-join { max-width: 390px; margin-inline: auto; }
+.judge-layout h1 { font-size: clamp(28px, 8.7vw, 34px); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; margin: 0; color: #0a2818; }
 .judge-layout h2 { font-size: 21px; line-height: 1.4; margin: 8px 0 12px; }
 .judge-layout h3 { font-size: 17px; margin: 8px 0; }
 .judge-layout p { margin-block: 8px; }
 .judge-layout header p { margin: 0; }
-.judge-layout .ant-card .ant-card-body { padding: clamp(16px, 4vw, 24px); }
-.judge-layout .ant-input, .judge-layout .ant-input-affix-wrapper { font-size: 16px; }
-.judge-layout .ant-input, .judge-layout .ant-input-affix-wrapper, .judge-layout .ant-btn,
-.judge-confirm .ant-btn { min-height: 44px; }
-.judge-layout .ant-btn, .judge-confirm .ant-btn { height: auto; white-space: normal; }
-.judge-layout .ant-alert { min-width: 0; }
+.judge-layout .judge-eyebrow { margin-bottom: 6px; font-size: 13px; letter-spacing: .02em; }
+.judge-join > header { margin-bottom: 6px; }
+
+/* Layered highlights sit in the background so content and controls stay crisp. */
+.judge-layout .ant-card,
+.judge-confirm .ant-modal-container {
+  background:
+    linear-gradient(135deg, #ffffff8c 0%, #ffffff14 40%, transparent 60%, #ffffff33 100%),
+    #ffffff61;
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(28px) saturate(1.6);
+  border: 1px solid #ffffff8c;
+  border-radius: 22px;
+  box-shadow: 0 12px 40px #14281e1f, inset 0 1px 0 #ffffffa6, inset 0 -1px 0 #ffffff26;
+}
+.judge-layout .ant-card .ant-card-body { padding: 18px 18px 16px; }
+.judge-layout .ant-card .ant-card-head { min-height: 0; margin: 0 18px; padding: 18px 0 12px; border-bottom: 1px solid #ffffff73; color: var(--judge-muted); font-size: 15px; }
+.judge-layout .ant-card-head-title { white-space: normal; }
+.judge-layout .judge-identity-card .ant-card-body { padding-top: 8px; }
+.judge-identity-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; margin-bottom: 8px; }
+.judge-identity-row strong { min-width: 0; font-size: 17px; letter-spacing: .01em; }
+.judge-identity-row .judge-link { font-size: 15px; font-weight: 600; padding-inline: 0; }
+.judge-layout .ant-form-item { margin-bottom: 14px; }
+.judge-layout .ant-form-item .ant-form-item-label { padding-bottom: 8px; }
+.judge-layout .ant-form-item-label > label { color: var(--judge-muted); }
+.judge-layout .ant-input,
+.judge-layout .ant-input-affix-wrapper {
+  min-height: 52px;
+  padding: 12px 16px;
+  border: 1px solid #ffffffa6;
+  border-radius: 14px;
+  background: #ffffff6b;
+  color: var(--judge-text);
+  font-size: 16px;
+  box-shadow: inset 0 1px 0 #ffffffcc, 0 1px 2px #0f1f160a;
+}
+.judge-layout .ant-input-affix-wrapper .ant-input { min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.judge-layout .ant-input::placeholder { color: #65766c; opacity: .8; }
+.judge-layout .ant-input:not(:disabled):hover,
+.judge-layout .ant-input-affix-wrapper:not(.ant-input-affix-wrapper-disabled):hover { border-color: #1a5c3a73; }
+.judge-layout .ant-input:focus,
+.judge-layout .ant-input-affix-wrapper-focused { border-color: #1a5c3a73; box-shadow: inset 0 1px 0 #ffffffe6, 0 0 0 3px #1a5c3a1f; }
+.judge-layout .ant-input-status-error:not(:disabled),
+.judge-layout .ant-input[aria-invalid="true"] { border-color: #b42318; }
+.judge-layout .ant-input:disabled,
+.judge-layout .ant-input-affix-wrapper-disabled { color: #65766c; background: #e6ece780; box-shadow: none; }
+.judge-layout .ant-btn,
+.judge-confirm .ant-btn { min-height: 46px; height: auto; padding: 10px 16px; border-radius: 14px; white-space: normal; font-size: 15px; transition: background .2s, transform .15s, box-shadow .2s; }
+.judge-layout .ant-btn-default,
+.judge-confirm .ant-btn-default { border-color: #ffffffb3; background: #ffffff59; color: #0f1f16; box-shadow: inset 0 1px 0 #ffffffb3; }
+.judge-layout .ant-btn-default:not(:disabled):hover,
+.judge-confirm .ant-btn-default:not(:disabled):hover { border-color: #1a5c3a66; background: #ffffff80; color: #1a5c3a; }
+.judge-layout .ant-btn-primary,
+.judge-confirm .ant-btn-primary { min-height: 52px; border-color: transparent; background: linear-gradient(180deg, #2a7a4f 0%, #1a5c3a 100%); color: #fff; font-size: 16px; font-weight: 600; box-shadow: 0 8px 24px #1a5c3a47, inset 0 1px 0 #ffffff40; }
+.judge-layout .ant-btn-primary:not(:disabled):hover,
+.judge-confirm .ant-btn-primary:not(:disabled):hover { background: linear-gradient(180deg, #32875a 0%, #216e46 100%); color: #fff; }
+.judge-layout .ant-btn:not(:disabled):active,
+.judge-confirm .ant-btn:not(:disabled):active { transform: scale(.98); }
+.judge-layout .ant-btn:disabled,
+.judge-confirm .ant-btn:disabled { background: #dce5de99; color: #65766c; border-color: #ffffff80; box-shadow: none; }
+.judge-layout a:focus-visible,
+.judge-layout summary:focus-visible,
+.judge-layout .ant-btn:focus-visible,
+.judge-confirm .ant-btn:focus-visible { outline: 3px solid #1a5c3a; outline-offset: 3px; }
+.judge-layout .ant-alert { min-width: 0; border-radius: 14px; }
 .judge-layout .ant-alert-content { min-width: 0; }
 .judge-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .judge-actions > * { min-width: 0; max-width: 100%; }
 .judge-actions > strong { flex: 1 1 160px; }
-.judge-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 4px; }
-.judge-link.active { font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
-.judge-muted, .judge-eyebrow { color: #59675f; font-size: 13px; }
+.judge-link { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 4px; color: #1a5c3a; }
+.judge-link:hover { color: #0a2818; }
+.judge-layout nav { padding: 6px; gap: 6px; border: 1px solid #ffffff8c; border-radius: 18px; background: #ffffff38; }
+.judge-layout nav .judge-link { flex: 1 1 auto; justify-content: center; padding-inline: 12px; border-radius: 12px; }
+/* Animate the gradient angle, keeping the rounded border and label stationary. */
+@property --judge-sync-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes judge-sync-flow {
+  to { --judge-sync-angle: 360deg; }
+}
+.judge-layout .judge-sync-button { position: relative; isolation: isolate; }
+.judge-layout .judge-sync-button .ant-btn-loading-icon { display: none; }
+.judge-layout .judge-sync-button.ant-btn-loading { opacity: 1; cursor: progress; }
+.judge-sync-border { position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; }
+.judge-sync-border::before,
+.judge-sync-border::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  pointer-events: none;
+  background: conic-gradient(from var(--judge-sync-angle), transparent 0deg 160deg, #41bfa9 210deg, #5089ed 260deg, #9b6de3 300deg, #dc77c3 330deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: judge-sync-flow var(--judge-sync-duration, 1s) linear 1 forwards;
+}
+.judge-sync-border::before { inset: -2px; border-radius: 16px; filter: blur(6px); opacity: .55; }
+.judge-link.active { font-weight: 700; background: #ffffff8c; box-shadow: 0 3px 12px #14281e0d, inset 0 1px 0 #ffffffb3; }
+.judge-muted, .judge-eyebrow { color: #52665a; font-size: 13px; }
+.judge-layout .judge-join-hint { margin: 14px 0 0; font-size: 12px; line-height: 1.55; text-align: center; }
 .judge-description { white-space: pre-wrap; }
-.judge-round-heading { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; color: #2f6b5a; font-weight: 600; }
-.judge-countdown { font-variant-numeric: tabular-nums; }
+.judge-round-heading { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; color: #1a5c3a; font-weight: 600; }
+.judge-countdown { padding: 4px 10px; border-radius: 10px; background: #ffffff80; font-variant-numeric: tabular-nums; }
 .judge-notice { margin-block: 12px; }
 .judge-field { margin-top: 24px; }
 .judge-field label { display: block; font-weight: 600; }
 .judge-score-input { display: flex; align-items: stretch; gap: 8px; }
-.judge-score-input .ant-btn { flex: 0 0 44px; font-size: 22px; padding: 4px; }
+.judge-score-input .ant-btn { flex: 0 0 48px; font-size: 22px; padding: 4px; }
 .judge-score-input .ant-input { flex: 1 1 0; min-width: 0; text-align: center; font-size: 22px; font-variant-numeric: tabular-nums; }
 .judge-field-error { color: #b42318; font-size: 13px; min-height: 20px; margin-top: 4px; }
-/* Normal flow keeps fields reachable with a soft keyboard or a short landscape viewport. */
-.judge-submit-bar { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #dce3df; }
+.judge-submit-bar { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #ffffffa6; }
 .judge-submit-bar p { margin: 0 0 4px; }
 .judge-total { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
-.judge-total strong { font-size: 28px; font-variant-numeric: tabular-nums; }
+.judge-total strong { color: #1a5c3a; font-size: 28px; font-variant-numeric: tabular-nums; }
 .judge-score-list { margin: 12px 0; }
-.judge-score-list > div { display: flex; gap: 12px; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #edf0ed; }
+.judge-score-list > div { display: flex; gap: 12px; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ffffffa6; }
 .judge-score-list dt { min-width: 0; overflow-wrap: anywhere; }
 .judge-score-list dd { margin: 0; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.judge-receipt { border-left: 3px solid #2f6b5a; padding-left: 12px; margin-block: 16px; }
+.judge-receipt { border-left: 3px solid #2a7a4f; border-radius: 0 12px 12px 0; padding: 8px 12px; margin-block: 16px; background: #ffffff40; }
 .judge-receipt-id { overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
 .judge-layout summary { cursor: pointer; min-height: 44px; padding: 12px 0; }
+/* Modal portals are outside judge-surface, so their theme is explicitly scoped here. */
 .judge-confirm { max-width: calc(100vw - 24px); top: 24px; padding-bottom: max(24px, env(safe-area-inset-bottom)); overflow-wrap: anywhere; }
-.judge-confirm .ant-modal-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.judge-confirm .ant-modal-container { background-color: #e8f0e6db; }
+.judge-confirm .ant-modal-header { background: transparent; }
+.judge-confirm .ant-modal-footer { display: flex; flex-wrap: wrap; align-items: stretch; justify-content: flex-end; gap: 8px; }
 .judge-confirm .ant-modal-footer .ant-btn { margin: 0; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .judge-layout .ant-card, .judge-confirm .ant-modal-container { background-color: #edf4ef; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .judge-layout .ant-card, .judge-confirm .ant-modal-container { background: #edf4ef; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .judge-sync-border::before,
+  .judge-sync-border::after { animation-duration: .01ms; }
+  .judge-layout .ant-btn, .judge-confirm .ant-btn { transition: none; }
+  .judge-layout .ant-btn:not(:disabled):active, .judge-confirm .ant-btn:not(:disabled):active { transform: none; }
+}
 @media (max-width: 374px) {
   .judge-layout { padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); }
 }

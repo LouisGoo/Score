@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Form, Input, Spin, Typography } from 'antd'
+import { Alert, Button, Card, Form, Input, Spin } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { judgeAuth } from '../api/judge'
@@ -97,22 +97,22 @@ function JoinForm({ publicCode }: { publicCode: string }) {
     finally { lock.current = false; setBusy(false) }
   }
 
-  return <main className="judge-stack">
-    <header><Typography.Text type="secondary">评委手机评分</Typography.Text><h1>加入活动</h1></header>
+  return <main className="judge-stack judge-join">
+    <header><p className="judge-eyebrow">评委手机评分</p><h1>加入活动</h1></header>
     {location.state?.expired && <Alert type="warning" showIcon title="身份已失效，请重新验证身份码" />}
     {error != null && <JudgeError error={error} />}
     {session.error && <><JudgeError error={session.error} /><Button onClick={() => void session.refetch()}>重新确认身份</Button></>}
-    {session.data && <Card title="当前已登录">
-      <p>{session.data.judge.number} · {session.data.judge.name}</p>
-      <div className="judge-actions"><Link className="judge-link" to={`/judge/events/${session.data.judge.event_id}`}>继续评分</Link>
-        <Button loading={busy} onClick={() => void logout()}>退出当前身份</Button></div>
+    {session.data && <Card title="当前已登录" className="judge-identity-card">
+      <div className="judge-identity-row"><strong>{session.data.judge.number} · {session.data.judge.name}</strong>
+        <Link className="judge-link" to={`/judge/events/${session.data.judge.event_id}`}>继续评分</Link></div>
+      <Button block loading={busy} onClick={() => void logout()}>退出当前身份</Button>
     </Card>}
     {!publicCode ? <Card>
       <Form layout="vertical" onFinish={(values: { publicCode: string }) => navigate(`/join/${values.publicCode.trim().toUpperCase()}`)}>
         <Form.Item name="publicCode" label="活动码" rules={[{ required: true, pattern: /^[a-zA-Z0-9]{12}$/, message: '请输入 12 位字母数字活动码', transform: value => value?.trim() }]}>
           <Input autoCapitalize="characters" autoComplete="off" maxLength={16} placeholder="请输入主办方提供的活动码" />
         </Form.Item><Button type="primary" htmlType="submit" block>查看活动</Button>
-      </Form><p className="judge-muted">也可扫描活动公共二维码或打开私人邀请链接加入。</p>
+      </Form><p className="judge-muted judge-join-hint">也可扫描活动公共二维码或打开私人邀请链接加入。</p>
     </Card> : <>
       {preview.isPending && <Spin />}
       {preview.error && <><JudgeError error={preview.error} /><Button onClick={() => void preview.refetch()}>重新加载活动</Button></>}
