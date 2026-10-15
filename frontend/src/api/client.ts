@@ -88,6 +88,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   const abort = () => controller.abort()
   signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) controller.abort()
   let response: Response
   try {
     response = await fetch(API_PREFIX + path, {

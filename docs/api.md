@@ -497,7 +497,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 以上并非完整业务错误目录；任务控制和评分的新增错误及重试语义见第 2 节。
 
-## 7. 实时订阅（18 已实现；前端恢复在 19）
+## 7. 实时订阅与恢复（18、19 已实现）
 
 `POST /api/v1/realtime/tickets` 请求包含 `event_id`、`role`（admin/judge/screen）；screen 额外提供 `grant_id`。管理员/评委使用各自 Cookie 和 CSRF，大屏使用 Bearer；全部检查 Origin 和活动授权。返回 `ticket`、`expires_at`、`stream_path`，默认有效期 30 秒，响应 no-store。不可访问的活动/草稿 404，授权失效 401，CSRF/Origin 不合法 403，Redis 不可用 503 `REALTIME_UNAVAILABLE`（Retry-After: 5）。请求失败可重试获取新票据。
 
@@ -509,7 +509,11 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 
 业务与 outbox 同事务，worker 租约领取后在事务外发布，成功后条件确认。租约 30 秒，失败最多退避 60 秒；崩溃后可补发，确认前崩溃会重复。`message_id` 与角色版本保持稳定，多个 worker 可乱序投递，消费者必须去重并在跳号时恢复快照。18 前的旧 outbox 只能触发 `stream.resync`，不能伪造历史版本。Redis Pub/Sub 不保证离线补发，`delivered_at` 只表示发布成功，不表示浏览器已收取。
 
-19 的恢复约定：连接缓冲后取快照，旧版本去重、跳号/重连/回到前台时刷新，每 30 秒轻量核对版本，失败时默认 5 秒抖动轮询并退避；服务端合并快照回源，个人数据按身份隔离。
+`GET /api/v1/realtime/version?event_id=...&role=admin|judge|screen` 返回 `{"version":1,"server_time":"..."}`；screen 另带 `grant_id` 查询参数和 Bearer。管理员/评委使用各自 Cookie，GET 不要求 CSRF。每次读取数据库当前授权和对应角色版本，不依赖 Redis，不读取完整评分历史。活动不可访问为 404，身份失效为 401，参数错误为 422，数据库不可用为 503（Retry-After: 3）；响应 no-store。字段以 OpenAPI 为准。
+
+前端建立连接后缓冲通知并重新取快照；旧版本去重，跳号、重连、回到前台时刷新。每 30 秒（±10%）轻量校对版本，补偿最后一条事件丢失；45 秒未收到消息则重连。WebSocket 失败时以 5 秒（±20%）轮询起步，HTTP 失败指数退避至 60 秒，遵守 Retry-After。页面隐藏或离线时暂停恢复任务，前台/网络恢复后同步；身份失效清除当前身份数据并提示重新加入。恢复只读取状态，不自动补交旧草稿。
+
+角色快照在每次数据库授权和版本检查后，使用每 API 进程 1 秒、最多 128 项的短时缓存，并合并相同键的并发回源。管理员/评委键包含角色、活动、身份、会话令牌哈希和版本；大屏公共数据按角色、活动、版本共享，但每个授权仍独立校验，撤销不会因命中缓存被绕过。等待其他请求回源时不持有数据库连接；等待超过 10 秒或并发键容量已满返回 503、Retry-After: 3。失败不缓存，HTTP 响应保持 no-store。缓存不承担跨 API 进程合并，也不替代正式容量测试。
 
 ## 8. 随代码维护
 

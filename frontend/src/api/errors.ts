@@ -42,6 +42,7 @@ const rules: Record<string, ErrorRule> = {
   HTTP_ERROR: { action: 'stop', fallback: '请求无法处理' },
   VALIDATION_ERROR: { action: 'fix', fallback: '提交的内容不合法', hint: '请检查填写内容' },
   SERVICE_UNAVAILABLE: { action: 'wait', fallback: '服务暂时不可用', hint: '请稍后刷新核对，不要重复提交' },
+  REALTIME_UNAVAILABLE: { action: 'wait', fallback: '实时连接暂不可用', hint: '页面会通过轮询继续同步' },
   INTERNAL_ERROR: { action: 'verify', fallback: '服务器内部错误', hint: '请刷新核对结果，并记录请求编号' },
   // 活动草稿、身份码、发布
   EVENT_NOT_DRAFT: { action: 'refresh', fallback: '活动已不是草稿' },

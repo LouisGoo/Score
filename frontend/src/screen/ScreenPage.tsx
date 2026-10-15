@@ -55,7 +55,7 @@ function ScreenFeed({ access, onInvalid }: { access: ScreenAccess & { token: str
   const error = query.error ? describeError(query.error) : null
   const retryAt = query.error instanceof ApiError ? query.errorUpdatedAt + (query.error.retryAfter ?? 0) * 1000 : 0
   const retryDisabled = query.isFetching || retryAt > now
-  const stale = query.isError || query.fetchStatus === 'paused' || (data && now - query.dataUpdatedAt > 12000)
+  const stale = query.isError || query.syncStatus === 'offline' || query.syncStatus === 'recovering' || query.fetchStatus === 'paused' || (data && now - query.verifiedAt > 45000)
   const joinUrl = data ? publicEntryUrl(data.event.public_code) : ''
   return <main ref={root} className="score-screen" data-theme={data?.display.theme ?? 'dark'}>
     <header className="screen-header"><div><p className="screen-eyebrow">{data?.event.organization || '现场评分'}</p>

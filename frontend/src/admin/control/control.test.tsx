@@ -113,7 +113,7 @@ function snapshot(rounds: PublicRound[], patch: Partial<AdminSnapshot> = {}): Ad
   }
 }
 
-const writes = (calls: Call[]) => calls.filter(c => c.method !== 'GET')
+const writes = (calls: Call[]) => calls.filter(c => c.method !== 'GET' && c.path !== '/realtime/tickets')
 const snapshotReads = (calls: Call[]) => calls.filter(c => c.method === 'GET' && c.path === '/events/e1/snapshot').length
 const later = (seconds: number) => new Date(Date.now() + seconds * 1000).toISOString()
 

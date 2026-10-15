@@ -27,6 +27,8 @@ export const apiError = (code: string, status: number, extra: Record<string, unk
  * 未登记的请求返回 404，便于发现意外调用。
  */
 export function mockApi(routesTable: Record<string, Handler | Handler[]>) {
+  // 页面测试默认模拟 Redis 暂不可用；实时协议测试单独提供连接与消息。
+  routesTable = { 'POST /realtime/tickets': apiError('REALTIME_UNAVAILABLE', 503), ...routesTable }
   const calls: Call[] = []
   const queues = new Map(Object.entries(routesTable).map(([k, v]) => [k, Array.isArray(v) ? [...v] : [v]]))
   vi.stubGlobal(

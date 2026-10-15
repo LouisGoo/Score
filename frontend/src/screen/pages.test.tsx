@@ -19,12 +19,47 @@ beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => { clients.splice(0).forEach(c => c.clear()); vi.unstubAllGlobals() })
 
 describe('independent screen', () => {
+  it('refreshes from a real hook subscription and clears the display on a revocation frame', async () => {
+    const sockets: WebSocketStub[] = []
+    class WebSocketStub extends EventTarget {
+      url: string
+      constructor(url: string) { super(); this.url = String(url); sockets.push(this) }
+      close() { /* local test transport */ }
+      send(value: string) {
+        expect(JSON.parse(value)).toEqual({ ticket: 'short-ticket' })
+        queueMicrotask(() => this.receive({ type: 'stream.ready', event_id: 'e1' }))
+      }
+      receive(value: unknown) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) })) }
+    }
+    vi.stubGlobal('WebSocket', WebSocketStub)
+    let data = screenSnapshot()
+    const calls = mockApi({ 'GET /screens/g1/snapshot': () => ({ body: data }),
+      'POST /realtime/tickets': { body: { ticket: 'short-ticket', stream_path: '/api/v1/events/e1/stream' } } })
+    const { queryClient } = render()
+    await screen.findByText('等待主持人开评')
+    await waitFor(() => expect(sockets).toHaveLength(1))
+    expect(sockets[0].url).not.toContain(screenToken)
+    await act(async () => { sockets[0].dispatchEvent(new Event('open')) })
+    await waitFor(() => expect(calls.filter(c => c.method === 'GET').length).toBeGreaterThanOrEqual(2))
+    const priorVersion = data.version
+    data = { ...screenSnapshot('result'), version: priorVersion + 3 }
+    act(() => sockets[0].receive({ type: 'result.published', event_id: 'e1', scope: 'screen', version: data.version }))
+    await screen.findByText('90.50')
+    act(() => sockets[0].receive({ type: 'session.revoked' }))
+    await screen.findByText('大屏授权已失效')
+    expect(screen.queryByText('90.50')).not.toBeInTheDocument()
+    await waitFor(() => expect(queryClient.getQueriesData({ queryKey: ['screen'] })).toEqual([]))
+  })
+
   it('clears the fragment and uses only the grant bearer, never a session or query-string token', async () => {
     const calls = mockApi({ 'GET /screens/g1/snapshot': { body: screenSnapshot() } })
     const { queryClient } = render()
     await screen.findByText('等待主持人开评')
     expect(window.location.hash).toBe('')
-    expect(calls).toHaveLength(1)
+    expect(calls.filter(c => c.method === 'GET')).toHaveLength(1)
+    expect(calls.find(c => c.path === '/realtime/tickets')).toMatchObject({
+      body: { role: 'screen', grant_id: 'g1', event_id: 'e1' }, headers: { Authorization: `Bearer ${screenToken}` },
+    })
     expect(calls[0]).toMatchObject({ method: 'GET', path: '/screens/g1/snapshot', query: '', headers: { Authorization: `Bearer ${screenToken}` } })
     expect(JSON.stringify(queryClient.getQueryCache().getAll().map(q => ({ key: q.queryKey, data: q.state.data })))).not.toContain(screenToken)
     expect(localStorage.length).toBe(0)
@@ -98,7 +133,7 @@ describe('independent screen', () => {
     expect(screen.getByRole('button', { name: '稍后重试' })).toBeDisabled()
     await act(async () => { await queryClient.invalidateQueries({ queryKey: ['screen'] }) })
     await screen.findByText('活动已结束')
-    expect(calls.filter(c => c.method !== 'GET')).toHaveLength(0)
+    expect(calls.filter(c => c.method !== 'GET' && c.path !== '/realtime/tickets')).toHaveLength(0)
   })
 
   it('clears both the old display and query cache after grant revocation', async () => {

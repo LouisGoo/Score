@@ -29,16 +29,19 @@ export function useJudgeSession() {
 
 export function useForgetJudge() {
   const client = useQueryClient()
-  return useCallback(() => {
+  return useCallback((preserveSessionDuringNavigation = false) => {
     const session = client.getQueryData<JudgeSessionInfo | null>(sessionKey)
     if (session) {
       try { clearJudgeDrafts(session.judge.event_id, session.judge.id) } catch { /* Storage may be unavailable. */ }
       clearJudgeSubmissions(session.judge.event_id, session.judge.id)
     }
     judgeAuth.forget()
-    void client.cancelQueries({ queryKey: queryKeys.judge })
-    client.removeQueries({ queryKey: queryKeys.judge, predicate: q => q.queryKey[1] !== 'session' })
-    client.setQueryData(sessionKey, null)
+    // 失效跳转时先清本机草稿与令牌，加入页接管后清查询缓存，避免过渡中的 Guard 再次重定向。
+    if (!preserveSessionDuringNavigation) {
+      void client.cancelQueries({ queryKey: queryKeys.judge })
+      client.removeQueries({ queryKey: queryKeys.judge, predicate: q => q.queryKey[1] !== 'session' })
+      client.setQueryData(sessionKey, null)
+    }
   }, [client])
 }
 
@@ -51,11 +54,13 @@ export function JudgeError({ error }: { error: unknown }) {
 
 export function ExpiredSession({ publicCode }: { publicCode?: string }) {
   const navigate = useNavigate()
+  const forget = useForgetJudge()
   useEffect(() => {
+    forget(true)
     navigate(publicCode ? `/join/${encodeURIComponent(publicCode)}` : '/join', {
       replace: true, state: { expired: true },
     })
-  }, [navigate, publicCode])
+  }, [forget, navigate, publicCode])
   return <Alert type="warning" title="身份已失效，请重新加入活动" />
 }
 

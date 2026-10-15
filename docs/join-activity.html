@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>加入活动 · 液态玻璃</title>
+<style>
+  :root {
+    --green: #1a5c3a;
+    --green-soft: rgba(26, 92, 58, 0.85);
+    --text: #0f1f16;
+    --muted: rgba(15, 31, 22, 0.55);
+    --glass: rgba(255, 255, 255, 0.38);
+    --glass-strong: rgba(255, 255, 255, 0.52);
+    --stroke: rgba(255, 255, 255, 0.55);
+    --stroke-dark: rgba(15, 31, 22, 0.12);
+    --shadow: 0 12px 40px rgba(20, 40, 30, 0.12),
+              inset 0 1px 0 rgba(255, 255, 255, 0.65),
+              inset 0 -1px 0 rgba(255, 255, 255, 0.15);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100dvh;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+      "Helvetica Neue", sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(120% 80% at 10% -10%, #d8f0e0 0%, transparent 50%),
+      radial-gradient(90% 70% at 100% 20%, #c9e4ff 0%, transparent 45%),
+      radial-gradient(80% 60% at 50% 110%, #f5e6c8 0%, transparent 50%),
+      linear-gradient(165deg, #e8efe6 0%, #dfe8e4 40%, #e6ebe8 100%);
+    padding: 28px 20px 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* floating blobs for refraction feel */
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.55;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .blob-a { width: 220px; height: 220px; background: #7ec8a0; top: 8%; left: -40px; }
+  .blob-b { width: 280px; height: 280px; background: #9bb8e8; top: 35%; right: -80px; }
+  .blob-c { width: 180px; height: 180px; background: #e8d4a8; bottom: 10%; left: 20%; }
+
+  .page { position: relative; z-index: 1; max-width: 390px; margin: 0 auto; }
+
+  .eyebrow {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-bottom: 22px;
+    color: #0a2818;
+  }
+
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(28px) saturate(1.6);
+    -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.08) 40%,
+      transparent 60%,
+      rgba(255, 255, 255, 0.2) 100%
+    );
+    pointer-events: none;
+  }
+
+  .card { padding: 18px 18px 16px; margin-bottom: 16px; }
+
+  .card-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(15, 31, 22, 0.75);
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 1px 0 rgba(15, 31, 22, 0.04);
+  }
+
+  .user-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .user-id {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .link {
+    background: none;
+    border: none;
+    color: var(--green);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 0;
+    font-family: inherit;
+  }
+
+  .btn-ghost {
+    display: block;
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transition: background 0.2s, transform 0.15s;
+  }
+  .btn-ghost:active { transform: scale(0.98); background: rgba(255, 255, 255, 0.5); }
+
+  .field-label {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .req { color: #d64545; margin-right: 2px; }
+
+  .input {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.42);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    font-size: 15px;
+    color: var(--text);
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 14px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8),
+                0 1px 2px rgba(15, 31, 22, 0.04);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .input::placeholder { color: rgba(15, 31, 22, 0.38); }
+  .input:focus {
+    border-color: rgba(26, 92, 58, 0.45);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9),
+                0 0 0 3px rgba(26, 92, 58, 0.12);
+  }
+
+  .btn-primary {
+    display: block;
+    width: 100%;
+    padding: 14px 16px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #2a7a4f 0%, var(--green) 100%);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    box-shadow: 0 8px 24px rgba(26, 92, 58, 0.28),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    transition: transform 0.15s, filter 0.2s;
+  }
+  .btn-primary:active { transform: scale(0.98); filter: brightness(0.95); }
+
+  .hint {
+    margin-top: 14px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="blob blob-a"></div>
+  <div class="blob blob-b"></div>
+  <div class="blob blob-c"></div>
+
+  <div class="page">
+    <p class="eyebrow">评委手机评分</p>
+    <h1>加入活动</h1>
+
+    <section class="glass card">
+      <div class="card-label">当前已登录</div>
+      <div class="user-row">
+        <span class="user-id">001 · 陆云涛</span>
+        <button type="button" class="link">继续评分</button>
+      </div>
+      <button type="button" class="btn-ghost">退出当前身份</button>
+    </section>
+
+    <section class="glass card">
+      <label class="field-label" for="code"><span class="req">*</span>活动码</label>
+      <input class="input" id="code" type="text" placeholder="请输入主办方提供的活动码" autocomplete="off" />
+      <button type="button" class="btn-primary">查看活动</button>
+      <p class="hint">也可扫描活动公共二维码或打开私人邀请链接加入。</p>
+    </section>
+  </div>
+</body>
+</html>

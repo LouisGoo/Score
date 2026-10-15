@@ -2,13 +2,17 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 
 from score_api.auth.dependencies import database_for, require_admin
 from score_api.auth.service import Principal
 from score_api.core.errors import APIError, ErrorResponse
+from score_api.core.security import token_hash
 from score_api.judge_sessions.dependencies import require_judge
 from score_api.judge_sessions.service import JudgePrincipal
+from score_api.realtime.service import Authorization, authorize
 from score_api.snapshots import service
+from score_api.snapshots.models import ScreenGrant
 from score_api.snapshots.schemas import (
     AdminSnapshot,
     CreatedGrant,
@@ -30,17 +34,54 @@ Judge = Annotated[JudgePrincipal, Depends(require_judge)]
 ScreenAuth = Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))]
 
 
+def cached_snapshot(request, auth, loader):
+    now = request.app.state.clock()
+    try:
+        version = authorize(database_for(request), auth, now, snapshot=True)
+    except APIError as error:
+        if auth.role == "screen":
+            raise APIError(401, "SCREEN_GRANT_INVALID", "大屏授权无效或已到期") from None
+        raise error
+    key = (auth.role, auth.event_id, auth.subject_id, auth.reference, version)
+    if auth.role == "screen":
+        key = (auth.role, auth.event_id, version)
+    result = request.app.state.snapshot_cache.get(key, loader)
+    return result.model_copy(update={"server_time": now})
+
+
 @router.get("/events/{event_id}/snapshot", response_model=AdminSnapshot)
 def admin_snapshot(event_id: str, request: Request, principal: Admin):
-    return service.admin_snapshot(
-        database_for(request), principal.admin.id, event_id, request.app.state.clock
+    auth = Authorization(
+        event_id=event_id,
+        role="admin",
+        subject_id=principal.admin.id,
+        reference=principal.token_hash,
+    )
+    return cached_snapshot(
+        request,
+        auth,
+        lambda: service.admin_snapshot(
+            database_for(request), principal.admin.id, event_id, request.app.state.clock
+        ),
     )
 
 
 @router.get("/judge/events/{event_id}/snapshot", response_model=JudgeSnapshot)
 def judge_snapshot(event_id: str, request: Request, principal: Judge):
-    return service.judge_snapshot(
-        database_for(request), principal, event_id, request.app.state.clock
+    if principal.event_id != event_id:
+        raise APIError(404, "NOT_FOUND", "活动不存在")
+    auth = Authorization(
+        event_id=event_id,
+        role="judge",
+        subject_id=principal.judge_id,
+        reference=principal.token_hash,
+    )
+    return cached_snapshot(
+        request,
+        auth,
+        lambda: service.judge_snapshot(
+            database_for(request), principal, event_id, request.app.state.clock
+        ),
     )
 
 
@@ -49,8 +90,22 @@ def screen_snapshot(grant_id: str, request: Request, authorization: ScreenAuth):
     headers = request.headers.getlist("authorization")
     if len(headers) != 1 or authorization is None:
         raise APIError(401, "SCREEN_GRANT_INVALID", "需要大屏只读授权")
-    return service.screen_snapshot(
-        database_for(request), grant_id, authorization.credentials, request.app.state.clock
+    with database_for(request).read_snapshot() as session:
+        event_id = session.scalar(select(ScreenGrant.event_id).where(ScreenGrant.id == grant_id))
+    if event_id is None:
+        raise APIError(401, "SCREEN_GRANT_INVALID", "大屏授权无效或已到期")
+    auth = Authorization(
+        event_id=event_id,
+        role="screen",
+        subject_id=grant_id,
+        reference=token_hash(authorization.credentials),
+    )
+    return cached_snapshot(
+        request,
+        auth,
+        lambda: service.public_screen_snapshot(
+            database_for(request), event_id, request.app.state.clock
+        ),
     )
 
 

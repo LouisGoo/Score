@@ -30,7 +30,7 @@ function JudgeWorkspace({ session, history }: { session: JudgeSessionInfo; histo
     previousRound.current = id
   }, [active?.id, snapshot])
 
-  if (expired || (query.error instanceof ApiError && query.error.status === 401)) return <ExpiredSession publicCode={snapshot?.event.public_code} />
+  if (expired || (query.error instanceof ApiError && query.error.status === 401)) return <ExpiredSession publicCode={query.publicCode ?? undefined} />
   if (!snapshot) return query.isPending ? <Spin className="page-spin" /> : <>
     <JudgeError error={query.error} /><Button onClick={() => void query.refetch()}>重新同步活动</Button>
   </>
@@ -68,9 +68,9 @@ function JudgeWorkspace({ session, history }: { session: JudgeSessionInfo; histo
         <Link className={`judge-link ${history ? 'active' : ''}`} aria-current={history ? 'page' : undefined} to={`/judge/events/${snapshot.event.id}/history`}>本人记录</Link>
         <Button loading={query.isFetching} onClick={() => void refresh()}>同步状态</Button>
       </nav>
-      <p className="judge-muted">最后同步：{new Date(snapshot.server_time).toLocaleTimeString('zh-CN', { hour12: false })}</p>
+      <p className="judge-muted">{query.syncStatus === 'live' ? '实时同步' : '自动同步'} · 最后同步：{new Date(snapshot.server_time).toLocaleTimeString('zh-CN', { hour12: false })}</p>
     </header>
-    {(!online || query.isError) && <Alert type="warning" showIcon title="连接中，数据可能延迟" description="本机草稿已保留。恢复连接后先同步状态，再由您确认提交。" />}
+    {(!online || query.isError || query.syncStatus === 'recovering') && <Alert type="warning" showIcon title="连接中，数据可能延迟" description="本机草稿已保留。恢复连接后先同步状态，再由您确认提交。" />}
     {query.error && <JudgeError error={query.error} />}
     {switched && !history && <Alert type="info" title="评分对象已切换，旧对象草稿已保留，不会带入新对象" closable onClose={() => setSwitched(false)} />}
     {ended && <Alert type="info" title="活动已结束，可查看本人评分记录和已公布成绩" />}

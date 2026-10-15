@@ -1,15 +1,16 @@
 import { useCallback } from 'react'
 import { App } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { adminConsole } from '../../api/admin'
+import { adminApi, adminConsole } from '../../api/admin'
 import { ApiError } from '../../api/client'
 import { describeError } from '../../api/errors'
 import { queryKeys } from '../../api/query'
 import type { AdminSnapshot } from '../../api/types'
 import { clockOffset } from '../../lib/clock'
-import { jittered, POLL_INTERVAL_MS, preferNewer } from '../../lib/polling'
+import { preferNewer } from '../../lib/polling'
+import { useRealtime } from '../../lib/useRealtime'
 import { useAdminSession, useReportError } from '../session'
-import { isActive, parseUnfinishedIds } from './model'
+import { parseUnfinishedIds } from './model'
 
 /** 管理快照及收到时的服务端时钟偏差（倒计时在本地推算）。 */
 export type ConsoleSnapshot = AdminSnapshot & { offsetMs: number }
@@ -19,30 +20,26 @@ function useSnapshotKey(eventId: string) {
   return queryKeys.adminSnapshot(admin.id, eventId)
 }
 
-function pollInterval(data: ConsoleSnapshot | undefined): number | false {
-  if (data && (data.event.status === 'FINISHED' || data.event.status === 'ARCHIVED')) return false
-  const busy = !data || data.rounds.some(r => isActive(r.status))
-  return jittered(busy ? POLL_INTERVAL_MS.admin : POLL_INTERVAL_MS.adminIdle)
-}
-
-/**
- * 管理快照：控制台轮询（后台标签页暂停、回到前台立即刷新），成绩页只在进入与手动刷新时读取。
- * 乱序到达的旧版本不覆盖已显示的状态。
- */
+/** 管理快照通过实时通知刷新，失联时退回有抖动/退避的轮询。 */
 export function useConsoleSnapshot(eventId: string, { poll }: { poll: boolean }) {
   const key = useSnapshotKey(eventId)
   const queryClient = useQueryClient()
-  return useQuery({
+  const query = useQuery({
     queryKey: key,
     queryFn: async ({ signal }): Promise<ConsoleSnapshot> => {
       const next = await adminConsole.snapshot(eventId, signal)
       return preferNewer(queryClient.getQueryData<ConsoleSnapshot>(key), { ...next, offsetMs: clockOffset(next.server_time) })
     },
-    refetchInterval: poll ? query => pollInterval(query.state.data) : false,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
+    retry: false,
+    refetchOnWindowFocus: !poll,
+    refetchOnReconnect: !poll,
   })
+  const sync = useRealtime({ key, role: 'admin', eventId, api: adminApi, enabled: poll, refetch: query.refetch })
+  const error = sync.error ?? query.error
+  const invalid = error instanceof ApiError && [401, 403, 404].includes(error.status)
+  return { ...query, error, data: invalid ? undefined : query.data,
+    isError: !!error, isPending: invalid ? false : query.isPending,
+    syncStatus: sync.status, verifiedAt: Math.max(sync.verifiedAt, query.dataUpdatedAt) }
 }
 
 /** 写操作后刷新快照，以及活动详情与列表汇总（状态、完成进度会变化）。 */

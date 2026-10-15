@@ -2,7 +2,7 @@
 
 import json
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,6 +29,11 @@ class TicketInfo(BaseModel):
     stream_path: str
 
 
+class VersionInfo(BaseModel):
+    version: int
+    server_time: datetime
+
+
 class Authorization(BaseModel):
     event_id: str
     role: Literal["admin", "judge", "screen"]
@@ -36,9 +41,14 @@ class Authorization(BaseModel):
     reference: str
 
 
-def authorize(database, auth, now):
+def authorize(database, auth, now, *, snapshot=False):
     with database.read_snapshot() as session:
         event = session.get(Event, auth.event_id)
+        if snapshot and auth.role == "admin" and event is not None:
+            if event.owner_id != auth.subject_id:
+                raise APIError(404, "NOT_FOUND", "活动不存在")
+            if event.status == "DRAFT":
+                raise APIError(409, "EVENT_NOT_PUBLISHED", "活动尚未发布")
         if event is None or event.status == "DRAFT":
             raise APIError(404, "NOT_FOUND", "活动不存在或尚未发布")
         if auth.role == "admin":
@@ -56,7 +66,8 @@ def authorize(database, auth, now):
             )
         elif auth.role == "judge":
             valid = session.scalar(
-                select(JudgeSession.token_hash)
+                select(EventJudge.snapshot_version)
+                .select_from(JudgeSession)
                 .join(EventJudge, EventJudge.id == JudgeSession.judge_id)
                 .where(
                     JudgeSession.token_hash == auth.reference,
@@ -78,8 +89,13 @@ def authorize(database, auth, now):
                     ScreenGrant.expires_at > now,
                 )
             )
-        if not valid:
+        if valid is None:
             raise APIError(401, "SESSION_EXPIRED", "实时授权已失效")
+        return (
+            valid
+            if auth.role == "judge"
+            else (event.version if auth.role == "admin" else event.screen_version)
+        )
 
 
 def issue_ticket(redis, auth, origin, now, ttl):

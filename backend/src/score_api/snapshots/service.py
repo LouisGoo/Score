@@ -244,18 +244,30 @@ def screen_snapshot(database, grant_id, token, clock):
             or not secrets.compare_digest(grant.token_hash, token_hash(token))
         ):
             raise APIError(401, "SCREEN_GRANT_INVALID", "大屏授权无效或已到期")
-        require_published(event)
-        _, rounds, _, published, ranking = public_data(session, event)
-        result = ScreenSnapshot(
-            version=event.screen_version,
-            server_time=now,
-            event=public_event(event),
-            display=display(event),
-            current_round=next((r for r in rounds if r.id == event.screen_round_id), None),
-            published_results=published,
-            ranking=ranking[: event.leaderboard_limit],
-        )
-    return result
+        return screen_data(session, event, now)
+
+
+def screen_data(session, event, now):
+    require_published(event)
+    _, rounds, _, published, ranking = public_data(session, event)
+    return ScreenSnapshot(
+        version=event.screen_version,
+        server_time=now,
+        event=public_event(event),
+        display=display(event),
+        current_round=next((r for r in rounds if r.id == event.screen_round_id), None),
+        published_results=published,
+        ranking=ranking[: event.leaderboard_limit],
+    )
+
+
+def public_screen_snapshot(database, event_id, clock):
+    """仅供已经逐请求校验授权的缓存入口使用；公开数据按活动/版本合并回源。"""
+    with database.read_snapshot() as session:
+        event = session.get(Event, event_id)
+        if event is None:
+            raise APIError(404, "NOT_FOUND", "活动不存在")
+        return screen_data(session, event, clock())
 
 
 def record_screen_change(

@@ -1,8 +1,9 @@
 import asyncio
 import json
 from contextlib import suppress
+from typing import Annotated
 
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
 from redis.exceptions import RedisError
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
@@ -15,6 +16,7 @@ from score_api.realtime.service import (
     Authorization,
     TicketInfo,
     TicketInput,
+    VersionInfo,
     authorize,
     issue_ticket,
 )
@@ -26,14 +28,14 @@ router = APIRouter(
 )
 
 
-@router.post("/realtime/tickets", response_model=TicketInfo)
-def ticket(body: TicketInput, request: Request):
-    database = database_for(request)
+def authorization_for(body: TicketInput, request: Request):
     if body.role == "admin":
         principal = require_admin(request)
         subject, reference = principal.admin.id, principal.token_hash
     elif body.role == "judge":
         principal = require_judge(request)
+        if principal.event_id != body.event_id:
+            raise APIError(404, "NOT_FOUND", "活动不存在")
         subject, reference = principal.judge_id, principal.token_hash
     else:
         headers = request.headers.getlist("authorization")
@@ -43,9 +45,22 @@ def ticket(body: TicketInput, request: Request):
         if not body.grant_id or not TOKEN_PATTERN.fullmatch(token):
             raise APIError(401, "SCREEN_GRANT_INVALID", "大屏授权无效")
         subject, reference = body.grant_id, token_hash(token)
-    auth = Authorization(
+    return Authorization(
         event_id=body.event_id, role=body.role, subject_id=subject, reference=reference
     )
+
+
+@router.get("/realtime/version", response_model=VersionInfo)
+def version(request: Request, query: Annotated[TicketInput, Query()]):
+    auth = authorization_for(query, request)
+    now = request.app.state.clock()
+    return VersionInfo(version=authorize(database_for(request), auth, now), server_time=now)
+
+
+@router.post("/realtime/tickets", response_model=TicketInfo)
+def ticket(body: TicketInput, request: Request):
+    database = database_for(request)
+    auth = authorization_for(body, request)
     now = request.app.state.clock()
     authorize(database, auth, now)
     broker = request.app.state.realtime

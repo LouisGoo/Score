@@ -1,11 +1,14 @@
-import { useEffect, useId, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { screenApi } from '../api/screen'
-import { ApiError } from '../api/client'
+import { ApiError, createClient } from '../api/client'
 import { queryKeys } from '../api/query'
 import type { ScreenSnapshot } from '../api/types'
 import { clockOffset } from '../lib/clock'
-import { jittered, POLL_INTERVAL_MS, preferNewer } from '../lib/polling'
+import { jittered, preferNewer } from '../lib/polling'
+import { useRealtime } from '../lib/useRealtime'
+
+let nextScreenInstance = 0
 
 export type DisplaySnapshot = ScreenSnapshot & { offsetMs: number }
 export function invalidGrant(error: unknown): boolean {
@@ -15,7 +18,8 @@ export function invalidGrant(error: unknown): boolean {
 export function useScreenSnapshot(grantId: string, token: string) {
   const client = useQueryClient()
   // An instance discriminator prevents reusing data from a different token for the same grant ID.
-  const instance = useId()
+  const scope = useMemo(() => ({ grantId, token, instance: ++nextScreenInstance }), [grantId, token])
+  const instance = scope.instance
   const key = useMemo(() => [...queryKeys.screenSnapshot(grantId), instance], [grantId, instance])
   const query = useQuery({
     queryKey: key,
@@ -23,16 +27,22 @@ export function useScreenSnapshot(grantId: string, token: string) {
       const next = await screenApi(grantId, token).snapshot(signal)
       return preferNewer(client.getQueryData<DisplaySnapshot>(key), { ...next, offsetMs: clockOffset(next.server_time) })
     },
-    refetchInterval: q => invalidGrant(q.state.error) ? false : Math.max(jittered(POLL_INTERVAL_MS.screen),
+    retry: false,
+    refetchInterval: q => q.state.data || invalidGrant(q.state.error) ? false : Math.max(
+      jittered(Math.min(60_000, 5000 * 2 ** Math.min(4, q.state.errorUpdateCount))),
       q.state.error instanceof ApiError ? (q.state.error.retryAfter ?? 0) * 1000 : 0),
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     gcTime: 0,
   })
   useEffect(() => () => {
     void client.cancelQueries({ queryKey: key })
     client.removeQueries({ queryKey: key })
   }, [client, key])
-  return query
+  const sync = useRealtime({ key, role: 'screen', eventId: query.data?.event.id, grantId,
+    api: createClient({ bearer: () => token }), refetch: query.refetch })
+  const error = sync.error ?? query.error
+  return { ...query, error, data: invalidGrant(error) ? undefined : query.data,
+    isError: !!error, isPending: invalidGrant(error) ? false : query.isPending,
+    syncStatus: sync.status, verifiedAt: Math.max(sync.verifiedAt, query.dataUpdatedAt) }
 }

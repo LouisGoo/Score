@@ -19,6 +19,7 @@ from score_api.realtime.broker import Broker, stop
 from score_api.realtime.router import router as realtime_router
 from score_api.results.router import router as results_router
 from score_api.rounds.router import router as rounds_router
+from score_api.snapshots.cache import SnapshotCache
 from score_api.snapshots.router import router as snapshots_router
 
 
@@ -57,6 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.state.database = None
     app.state.realtime = None
+    app.state.snapshot_cache = SnapshotCache()
     app.state.settings = settings
     app.state.clock = utc_now
     install_error_handlers(app)
