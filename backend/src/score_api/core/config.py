@@ -1,6 +1,7 @@
+from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +11,8 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Score API"
+    environment: Literal["development", "production"] = "development"
+    public_base_url: str | None = Field(default=None, validation_alias="PUBLIC_BASE_URL")
     redis_url: SecretStr | None = None
     realtime_ticket_ttl_seconds: int = Field(default=30, ge=5, le=60)
     realtime_auth_interval_seconds: float = Field(default=30, ge=0.1, le=60)
@@ -33,6 +36,20 @@ class Settings(BaseSettings):
     judge_source_limit: int = Field(default=600, ge=100, le=10000)
     judge_event_limit: int = Field(default=3000, ge=100, le=50000)
     judge_attempt_limit: int = Field(default=10, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def validate_production(self):
+        if self.environment == "production":
+            if not self.public_base_url:
+                raise ValueError("生产环境必须配置 PUBLIC_BASE_URL")
+            self.validate_origins([self.public_base_url])
+            if not self.public_base_url.startswith("https://") or not self.cookie_secure:
+                raise ValueError("生产环境必须使用 HTTPS 和安全 Cookie")
+            if self.allowed_origins != [self.public_base_url]:
+                raise ValueError("生产可信来源必须与 PUBLIC_BASE_URL 一致")
+            if self.database_url is None or self.credential_hmac_key is None:
+                raise ValueError("生产环境必须配置数据库与稳定的凭证密钥")
+        return self
 
     @field_validator("credential_hmac_key")
     @classmethod

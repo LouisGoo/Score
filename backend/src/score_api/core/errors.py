@@ -1,3 +1,4 @@
+import logging
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -6,6 +7,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
+
+from score_api.core.logging import log_failure
+
+logger = logging.getLogger("score.api")
 
 
 class ValidationIssue(BaseModel):
@@ -68,9 +73,21 @@ def install_error_handlers(app: FastAPI) -> None:
                 )
         try:
             response = await call_next(request)
-        except Exception:
+        except Exception as error:
             # 不输出异常正文；其中可能有 SQL 参数、凭证或连接信息。
+            log_failure(
+                logger,
+                "request_failed",
+                error,
+                request_id=request.state.request_id,
+                status=500,
+            )
             return error_response(request, APIError(500, "INTERNAL_ERROR", "服务器内部错误"))
+        if response.status_code >= 500:
+            logger.error(
+                "request_failed",
+                extra={"request_id": request.state.request_id, "status": response.status_code},
+            )
         response.headers["X-Request-ID"] = request.state.request_id
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
@@ -87,6 +104,13 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request: Request, _error: SQLAlchemyError):
+        log_failure(
+            logger,
+            "database_failed",
+            _error,
+            request_id=request.state.request_id,
+            status=503,
+        )
         return error_response(
             request, APIError(503, "SERVICE_UNAVAILABLE", "服务暂时不可用", retry_after=3)
         )

@@ -548,3 +548,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 - 尚未确定的契约继续标为规划中，不将设计示例包装成已经可用的 API。
 
 未来接口数量增多后，可按 auth/events/rounds/realtime 拆分至 docs/api/，本文保留总索引。
+
+## 22：部署与错误日志
+
+接口结构不变。生产由 Nginx 提供同源 HTTPS / WebSocket，未知 API 路径不回退 SPA。5xx 错误日志通过响应 `X-Request-ID` 关联，只记录状态、异常类型与代码位置，不记录请求数据或异常正文。存活/就绪响应和 Redis 降级契约不变，详见 [部署说明](deployment.md)。

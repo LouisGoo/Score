@@ -12,6 +12,7 @@ from sqlalchemy import select, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 
 from score_api.core.config import Settings
+from score_api.core.logging import configure_logging
 from score_api.db import Database, utc_now
 from score_api.events.models import Event
 from score_api.results.service import freeze_result
@@ -110,7 +111,7 @@ def main():
         "--batch-size", type=int, default=50, choices=range(1, 501), metavar="1..500"
     )
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_logging()
     database = redis = None
     try:
         settings = Settings()

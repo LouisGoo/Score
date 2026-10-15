@@ -69,3 +69,22 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated dummy configuration and certificate
+        run: |
+          cp infra/.env.example .env.production
+          python -c "from pathlib import Path; p=Path('.env.production'); p.write_text(p.read_text().replace('REPLACE_WITH_64_RANDOM_HEX_CHARACTERS', 'ab' * 32))"
+          mkdir -p infra/tls/web infra/tls/mysql
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=score.example.org -keyout infra/tls/web/privkey.pem -out infra/tls/web/fullchain.pem
+      - name: Validate Compose and build production images
+        run: |
+          docker compose --env-file .env.production -f compose.production.yaml config --quiet
+          docker compose --env-file .env.production -f compose.production.yaml build
+      - name: Validate TLS configuration and production settings
+        run: |
+          docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps web nginx -t
+          docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps api python -c "from score_api.core.config import Settings; Settings()"

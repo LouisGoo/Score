@@ -1,0 +1,14 @@
+.git
+.tools
+.venv
+.env*
+**/.env
+**/.env.*
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/node_modules
+**/dist
+infra/tls
+**/*.pem
+**/*.key

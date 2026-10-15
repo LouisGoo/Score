@@ -1,0 +1,66 @@
+name: score
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "5m"
+      max-file: "3"
+x-backend: &backend
+  <<: *service
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+  env_file: .env.production
+  environment:
+    SCORE_ENVIRONMENT: production
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL}
+    SCORE_ALLOWED_ORIGINS: '["${PUBLIC_BASE_URL}"]'
+    SCORE_COOKIE_SECURE: "true"
+    SCORE_REDIS_URL: redis://redis:6379/0
+  volumes:
+    - ./infra/tls/mysql:/certs:ro
+  init: true
+services:
+  api:
+    <<: *backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/live', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  worker:
+    <<: *backend
+    command: ["python", "-m", "score_api.worker"]
+  migrate:
+    <<: *backend
+    restart: "no"
+    profiles: ["tools"]
+    command: ["alembic", "upgrade", "head"]
+  redis:
+    <<: *service
+    image: redis:7.4.2-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+  web:
+    <<: *service
+    build:
+      context: .
+      dockerfile: infra/nginx/Dockerfile
+      args:
+        PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL}
+    networks:
+      default:
+        ipv4_address: 172.30.22.10
+    ports:
+      - "443:443"
+    volumes:
+      - ./infra/tls/web:/etc/nginx/tls:ro
+    depends_on:
+      api:
+        condition: service_started
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.22.0/24

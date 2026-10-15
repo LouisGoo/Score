@@ -2,10 +2,13 @@
 
 import asyncio
 import json
+import logging
 from contextlib import suppress
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
+
+logger = logging.getLogger("score.realtime")
 
 CHANNEL = "score:events:v1"
 
@@ -15,6 +18,7 @@ class Broker:
         self.redis = Redis.from_url(url, socket_connect_timeout=2, socket_timeout=3)
         self.queues = {}
         self.ready = False
+        self.failure_logged = False
 
     def attach(self, event_id):
         queue = asyncio.Queue(maxsize=64)
@@ -57,6 +61,7 @@ class Broker:
                                 continue
                             if msg["type"] == "subscribe":
                                 self.ready = True
+                                self.failure_logged = False
                                 delay = 0.5
                             elif msg["type"] == "message":
                                 try:
@@ -64,7 +69,12 @@ class Broker:
                                 except (ValueError, TypeError, AttributeError):
                                     self.disconnect()
                                     break
-                except (RedisError, OSError):
+                except (RedisError, OSError) as error:
+                    if not self.failure_logged:
+                        logger.error(
+                            "redis_unavailable", extra={"error_type": type(error).__name__}
+                        )
+                        self.failure_logged = True
                     self.disconnect()
                 await asyncio.sleep(delay)
                 delay = min(15, delay * 2)

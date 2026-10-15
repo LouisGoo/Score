@@ -218,3 +218,7 @@ CI 使用 MySQL 8.0.40 服务执行完整后端检查。构建已含 TypeScript 
 Redis 故障只中断实时通道：票据返回 503，已提交 outbox 保留，worker 退避后重投。Redis Pub/Sub 不持久保存浏览器漏掉的消息，页面恢复必须重新获取快照。握手在第一帧传票据；反向代理需要开启 WS Upgrade。开发代理配置在 19 随前端接入更新。
 
 验收实时集成测试需在独立测试库配置 `SCORE_TEST_DATABASE_URL` 和 `SCORE_TEST_REDIS_URL`（建议独立 Redis 实例/DB），执行 `pytest -q`；不配置 Redis 时实时集成项明确跳过。
+
+## 生产部署（22）
+
+科室小范围部署使用 [部署说明](docs/deployment.md) 与 `compose.production.yaml`。只提供基础脱敏错误日志，无额外监控平台；生产配置强制 HTTPS、安全 Cookie、明确可信来源。验证结果及目标环境验收边界见 [Review 22](docs/review-22.md)。
