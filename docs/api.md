@@ -387,7 +387,7 @@ FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前�
 | --- | --- | --- |
 | 18 | POST /realtime/tickets | 兑换短时一次性连接票据；有效会话/展示授权，细节随实现明确 |
 | 18 | WS /api/v1/events/{id}/stream（完整路径） | 授权实时订阅；一次性票据 |
-| 20 | GET /events/{id}/exports/{kind} | 汇总/明细/审计 CSV；活动拥有者 |
+| 20a | GET /events/{id}/exports/{kind} | 汇总/明细/审计 CSV；活动拥有者；前端导出交互在 20b 接入 |
 
 ## 5. 关键业务流程
 

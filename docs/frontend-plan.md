@@ -20,7 +20,7 @@
 | `/admin/events`、`/admin/events/new` | 14b | `GET/POST events`、`POST events/{id}/copy`、`DELETE events/{id}` |
 | `/admin/events/:id/settings` | 14b | `PATCH events/{id}`、`entries`/`judges` 子资源、`PUT .../credential`、`POST .../reset-credential`、`POST events/{id}/publish`、`GET events/{id}/publication` |
 | `/admin/events/:id/control` | 15 | `GET events/{id}/snapshot`、`POST rounds/{id}/open\|pause\|resume\|skip\|close\|reopen\|publish-result\|no-result`、`POST events/{id}/finish\|archive` |
-| `/admin/events/:id/results` | 15 | `GET events/{id}/snapshot`（含收评快照、评分历史与排名，与控制台同一读视图）；导出入口留待 20 |
+| `/admin/events/:id/results` | 15、20b | `GET events/{id}/snapshot`（含收评快照、评分历史与排名，与控制台同一读视图）；20b 接入 20a 提供的 `GET events/{id}/exports/{kind}` 导出接口 |
 | 大屏管理（控制台内） | 17 | `POST/GET/DELETE events/{id}/screen-grants`、`PUT events/{id}/screen` |
 | `/join`、`/join/:publicCode` | 16 | `GET join/{code}`、`GET judge-sessions/csrf`、`POST judge-sessions/verify`、`POST judge-sessions/exchange` |
 | `/judge/events/:id`、`.../history` | 16 | `GET judge-sessions/me`、`GET judge/events/{id}/snapshot`、`PUT/GET rounds/{id}/my-ballot`、`POST judge-sessions/logout` |
@@ -108,6 +108,12 @@ frontend/src/
 | 15 | 控制台：对象列表、开评/暂停/恢复/跳过/收评/重开、进度与已交状态、结果核对/公布/无结果、结束/归档、原因确认 | 版本冲突刷新；无代填分入口；未完成结束时定位对象 |
 | 16 | 加入、身份确认、等待/评分/提交确认、回执、改分、本人历史、草稿隔离 | 360px；零分与空值；超时核验；旧对象草稿不混用 |
 | 17 | 大屏授权管理与展示设置、独立大屏六种模式、主题、全屏、二维码、同步提示 | 1080p；无凭证与管理按钮；仅已公布对象排名 |
+
+### 5.1 后续导出批次（2026-10-15 拆分）
+
+- 20a：后端先交付汇总、明细、审计三类 CSV 接口，明确类型、过滤参数、文件名、响应格式与错误码，并同步接口文档和生成类型；负责活动拥有者权限、默认已公布过滤、未公布标注及公式注入防护。
+- 20b：在成绩页增加导出类型选择、默认关闭的“包含未公布”选项及提示，补充文件下载能力、加载状态与统一错误反馈。当前请求工具仅解析 JSON，需支持 CSV 下载及文件名处理。
+- 20b 依赖 20a，分别 review、分别提交；验收覆盖中文文件下载、默认过滤、显式包含未公布、登录失效、下载失败，以及导出与页面及冻结结果快照一致。
 
 ## 6. 联调环境
 
