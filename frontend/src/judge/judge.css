@@ -36,7 +36,6 @@
   overflow-wrap: anywhere;
 }
 .judge-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.judge-join { max-width: 390px; margin-inline: auto; }
 .judge-layout h1 { font-size: clamp(28px, 8.7vw, 34px); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; margin: 0; color: #0a2818; }
 .judge-layout h2 { font-size: 21px; line-height: 1.4; margin: 8px 0 12px; }
 .judge-layout h3 { font-size: 17px; margin: 8px 0; }
