@@ -38,7 +38,7 @@ export function Home() {
               <Typography.Text type="secondary">{m.label}</Typography.Text>
               <Typography.Title level={4}>{m.title}</Typography.Title>
               <Typography.Paragraph type="secondary">{m.text}</Typography.Paragraph>
-              {m.to && <Link to={m.to}><Button>{m.action}</Button></Link>}
+              {m.to && <Link to={m.to} target='_blank'><Button>{m.action}</Button></Link>}
             </Card>
           </Col>
         ))}

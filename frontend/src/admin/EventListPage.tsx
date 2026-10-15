@@ -85,7 +85,7 @@ export function EventListPage() {
       dataIndex: 'title',
       render: (_, e) => (
         <Space orientation="vertical" size={0}>
-          <Link to={`/admin/events/${e.id}/settings`}>{e.title}</Link>
+          <Link to={`/admin/events/${e.id}/settings`} target='_blank'>{e.title}</Link>
           {e.organization && <Typography.Text type="secondary">{e.organization}</Typography.Text>}
         </Space>
       ),
@@ -122,11 +122,11 @@ export function EventListPage() {
       width: 230,
       render: (_, e) => (
         <Space size={4} wrap>
-          <Link to={`/admin/events/${e.id}/settings`}>
+          <Link to={`/admin/events/${e.id}/settings`} target='_blank'>
             <Button size="small" type="link">{e.status === 'DRAFT' ? '编辑' : '设置'}</Button>
           </Link>
           {e.status !== 'DRAFT' && (
-            <Link to={`/admin/events/${e.id}/control`}>
+            <Link to={`/admin/events/${e.id}/control`} target='_blank'>
               <Button size="small" type="link">控制台</Button>
             </Link>
           )}
