@@ -1,6 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { adminExports } from '../../api/admin'
+import { ApiError } from '../../api/client'
+import * as downloads from '../../lib/download'
+import { queryKeys } from '../../api/query'
 import type { AdminSnapshot, EventInfo, JudgeInfo, PublicRound, PublishedRule, ResultInfo } from '../../api/types'
 import { apiError, mockApi, renderRoute, type Call } from '../../test/render'
 
@@ -116,6 +120,85 @@ function snapshot(rounds: PublicRound[], patch: Partial<AdminSnapshot> = {}): Ad
 const writes = (calls: Call[]) => calls.filter(c => c.method !== 'GET' && c.path !== '/realtime/tickets')
 const snapshotReads = (calls: Call[]) => calls.filter(c => c.method === 'GET' && c.path === '/events/e1/snapshot').length
 const later = (seconds: number) => new Date(Date.now() + seconds * 1000).toISOString()
+
+function openResults() {
+  mockApi({ 'GET /auth/me': { body: session }, 'GET /events/e1/snapshot': { body: snapshot([round(1)]) } })
+  return renderRoute('/admin/events/e1/results')
+}
+
+describe('results export', () => {
+  it('defaults to published summary, supports details/audit and warns for unpublished data', async () => {
+    const file = { blob: new Blob(['csv']), filename: '中文.csv' }
+    const download = vi.spyOn(adminExports, 'download').mockResolvedValue(file)
+    const save = vi.spyOn(downloads, 'saveDownload').mockImplementation(() => {})
+    const user = userEvent.setup()
+    openResults()
+    const checkbox = await screen.findByRole('checkbox', { name: '包含未公布' })
+    expect(checkbox).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: /下载 CSV/ }))
+    await waitFor(() => expect(save).toHaveBeenCalledWith(file))
+    expect(download).toHaveBeenLastCalledWith('e1', 'summary', false, expect.any(AbortSignal))
+    await user.click(screen.getByRole('combobox', { name: '导出类型' }))
+    await user.click(await screen.findByText('评分明细'))
+    await user.click(checkbox)
+    expect(await screen.findByText(/文件将包含未公布数据/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /下载 CSV/ }))
+    await waitFor(() => expect(download).toHaveBeenLastCalledWith('e1', 'details', true, expect.any(AbortSignal)))
+    await user.click(screen.getByRole('combobox', { name: '导出类型' }))
+    await user.click(await screen.findByText('操作审计', { selector: '.ant-select-item-option-content' }))
+    await user.click(screen.getByRole('button', { name: /下载 CSV/ }))
+    await waitFor(() => expect(download).toHaveBeenLastCalledWith('e1', 'audit', true, expect.any(AbortSignal)))
+  })
+
+  it('prevents overlapping downloads and cancels when leaving the page', async () => {
+    let finish!: (value: { blob: Blob; filename: string }) => void
+    const download = vi.spyOn(adminExports, 'download').mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    const save = vi.spyOn(downloads, 'saveDownload').mockImplementation(() => {})
+    const user = userEvent.setup()
+    const view = openResults()
+    await user.click(await screen.findByRole('button', { name: /下载 CSV/ }))
+    const pending = screen.getByRole('button', { name: /正在生成并下载/ })
+    expect(screen.getByRole('checkbox', { name: '包含未公布' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: '导出类型' })).toBeDisabled()
+    await user.click(pending)
+    expect(download).toHaveBeenCalledTimes(1)
+    const signal = download.mock.calls[0][3]!
+    view.unmount()
+    expect(signal.aborted).toBe(true)
+    finish({ blob: new Blob(['csv']), filename: 'late.csv' })
+    await Promise.resolve()
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('shows a failed download and allows manual retry without saving an error', async () => {
+    const download = vi.spyOn(adminExports, 'download')
+      .mockRejectedValueOnce(new ApiError(503, 'SERVICE_UNAVAILABLE', '服务暂时不可用'))
+      .mockResolvedValue({ blob: new Blob(['csv']), filename: 'summary.csv' })
+    const save = vi.spyOn(downloads, 'saveDownload').mockImplementation(() => {})
+    const user = userEvent.setup()
+    openResults()
+    await user.click(await screen.findByRole('button', { name: /下载 CSV/ }))
+    expect(await screen.findByText(/导出失败：服务暂时不可用/)).toBeInTheDocument()
+    expect(save).not.toHaveBeenCalled()
+    expect(download).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: /下载 CSV/ }))
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+  })
+
+  it('clears the session and returns to login when a download receives 401', async () => {
+    vi.spyOn(adminExports, 'download').mockRejectedValue(new ApiError(401, 'SESSION_EXPIRED', '会话失效'))
+    const save = vi.spyOn(downloads, 'saveDownload').mockImplementation(() => {})
+    const user = userEvent.setup()
+    const { router, queryClient } = openResults()
+    const button = await screen.findByRole('button', { name: /下载 CSV/ })
+    expect(queryClient.getQueryData(queryKeys.adminSnapshot('a1', 'e1'))).toBeDefined()
+    await user.click(button)
+    expect(await screen.findByText('登录已失效，请重新登录')).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.pathname).toBe('/admin/login'))
+    expect(queryClient.getQueryData(queryKeys.adminSnapshot('a1', 'e1'))).toBeUndefined()
+    expect(save).not.toHaveBeenCalled()
+  })
+})
 
 describe('control console', () => {
   it('opens a pending object after confirming N, rule and duration, with no score entry for the host', async () => {

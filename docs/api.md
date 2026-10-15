@@ -47,7 +47,7 @@ WebSocket 消息协议由本文维护，不假定 HTTP OpenAPI 会自动描述�
 | 503 | SERVICE_UNAVAILABLE | 数据库不可用；按 Retry-After 等待后重试 |
 | 500 | INTERNAL_ERROR | 未预期错误；保留 request_id 后重试/排查 |
 
-失败响应继续使用统一 JSON 错误信封，不能保存为 CSV。20b 的页面交互依赖本契约。
+失败响应继续使用统一 JSON 错误信封，不能保存为 CSV。20b 已在成绩页接入本契约，支持三种文件类型、显式未公布选项、中文文件名、加载状态及统一错误处理。
 
 ### GET /api/v1/health/live
 

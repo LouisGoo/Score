@@ -7,8 +7,9 @@ import { useConsoleSnapshot, type ConsoleSnapshot } from './data'
 import { latestResult, receiptsFor, resultsFor } from './model'
 import { ResultReview } from './ResultReview'
 import { SnapshotFailure } from './SnapshotFailure'
+import { ExportPanel } from './ExportPanel'
 
-/** 成绩与记录：排名、各对象收评结果与历次收评、评分版本记录。导出在后续批次提供。 */
+/** 成绩与记录：排名、历次收评与评分版本，以及成绩和审计 CSV 导出。 */
 export function EventResultsPage() {
   const { eventId = '' } = useParams()
   const snapshot = useConsoleSnapshot(eventId, { poll: false })
@@ -79,6 +80,7 @@ export function EventResultsPage() {
       </Flex>
 
       <Space orientation="vertical" size="large" className="full-width">
+        <ExportPanel key={eventId} eventId={eventId} />
         <Card title={final ? '最终排名' : '当前排名'} size="small">
           <Table<RankingInfo>
             rowKey="entry_id"

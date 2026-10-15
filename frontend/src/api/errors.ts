@@ -23,6 +23,9 @@ const rules: Record<string, ErrorRule> = {
   // 网络层（客户端生成）
   NETWORK_ERROR: { action: 'verify', fallback: '网络连接失败', hint: '请检查网络；如刚提交过操作，请先刷新核对结果' },
   TIMEOUT: { action: 'verify', fallback: '请求超时', hint: '操作可能已生效，请先刷新核对结果' },
+  DOWNLOAD_FAILED: { action: 'stop', fallback: '下载未完成', hint: '请重新下载' },
+  DOWNLOAD_INVALID: { action: 'stop', fallback: '服务器未返回 CSV 文件', hint: '请稍后重试' },
+  DOWNLOAD_SAVE_FAILED: { action: 'stop', fallback: '无法启动文件保存', hint: '请检查浏览器下载设置后重试' },
   // 认证与请求保护
   SESSION_EXPIRED: { action: 'relogin', fallback: '登录已失效', hint: '请重新登录或验证身份' },
   INVALID_CREDENTIALS: { action: 'fix', fallback: '账号、密码或身份码不正确' },

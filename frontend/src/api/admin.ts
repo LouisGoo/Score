@@ -1,4 +1,5 @@
 import { createClient, memoryToken, request } from './client'
+import type { paths } from './schema'
 import type {
   AdminSnapshot,
   CloseInput,
@@ -87,6 +88,13 @@ async function listAll<T>(path: string, signal?: AbortSignal): Promise<T[]> {
 
 const id = encodeURIComponent
 const eventPath = (eventId: string) => `/events/${id(eventId)}`
+
+export type ExportKind = paths['/api/v1/events/{event_id}/exports/{kind}']['get']['parameters']['path']['kind']
+
+export const adminExports = {
+  download: (eventId: string, kind: ExportKind, includeUnpublished = false, signal?: AbortSignal) =>
+    adminApi.download(`${eventPath(eventId)}/exports/${kind}?include_unpublished=${includeUnpublished}`, { signal }),
+}
 
 /** 主办方活动管理。写操作均无幂等键：超时后由调用方先查询核验，不自动重发。 */
 export const adminEvents = {

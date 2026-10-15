@@ -83,15 +83,22 @@ async function toApiError(response: Response): Promise<ApiError> {
 
 /** 同源调用 /api/v1；不自动重试，重试策略由调用方按操作是否幂等决定。 */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return performRequest(path, options, async response => {
+    if (response.status === 204) return undefined as T
+    return (await response.json()) as T
+  })
+}
+
+/** 超时与取消覆盖整个响应体读取，文件传输中断也进入统一错误处理。 */
+async function performRequest<T>(path: string, options: RequestOptions, read: (response: Response) => Promise<T>): Promise<T> {
   const { method = 'GET', body, headers = {}, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   const abort = () => controller.abort()
   signal?.addEventListener('abort', abort, { once: true })
   if (signal?.aborted) controller.abort()
-  let response: Response
   try {
-    response = await fetch(API_PREFIX + path, {
+    const response = await fetch(API_PREFIX + path, {
       method,
       credentials: 'same-origin',
       cache: 'no-store',
@@ -99,17 +106,52 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       headers: body === undefined ? headers : { 'Content-Type': 'application/json', ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
-  } catch {
+    if (!response.ok) throw await toApiError(response)
+    return await read(response)
+  } catch (error) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    if (error instanceof ApiError) throw error
     const timedOut = controller.signal.aborted
     throw new ApiError(0, timedOut ? 'TIMEOUT' : 'NETWORK_ERROR', timedOut ? '请求超时' : '网络连接失败')
   } finally {
     clearTimeout(timer)
     signal?.removeEventListener('abort', abort)
   }
-  if (!response.ok) throw await toApiError(response)
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
+}
+
+export interface DownloadFile {
+  blob: Blob
+  filename: string
+}
+
+/** 优先 RFC 5987 UTF-8 文件名；不信任服务器给出的路径、控制符或可执行扩展名。 */
+export function csvFilename(disposition: string | null): string {
+  const extended = disposition?.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)
+  let name: string | undefined
+  if (extended) {
+    try { name = decodeURIComponent(extended[1].trim()) } catch { /* 回退到普通文件名。 */ }
+  }
+  name ||= disposition?.match(/filename\s*=\s*"([^"]+)"/i)?.[1]
+    ?? disposition?.match(/filename\s*=\s*([^;]+)/i)?.[1]?.trim()
+  // eslint-disable-next-line no-control-regex -- 文件名必须移除控制字符，避免路径和显示注入。
+  const safe = name?.replace(/[\u0000-\u001f\u007f/\\:*?"<>|\u202a-\u202e\u2066-\u2069]/g, '_').replace(/^[. ]+|[. ]+$/g, '')
+  return safe && /\.csv$/i.test(safe) ? safe : 'export.csv'
+}
+
+export async function requestFile(path: string, options: Omit<RequestOptions, 'method' | 'body'> = {}): Promise<DownloadFile> {
+  try {
+    return await performRequest(path, { timeoutMs: 60_000, ...options }, async response => {
+      if (response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'text/csv') {
+        throw new ApiError(response.status, 'DOWNLOAD_INVALID', '服务器未返回 CSV 文件，请重试', response.headers.get('X-Request-ID'))
+      }
+      return { blob: await response.blob(), filename: csvFilename(response.headers.get('Content-Disposition')) }
+    })
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 0) {
+      throw new ApiError(0, 'DOWNLOAD_FAILED', '下载未完成，请检查网络后重试', error.requestId)
+    }
+    throw error
+  }
 }
 
 export interface CsrfSource {
@@ -121,6 +163,7 @@ export interface CsrfSource {
 
 export interface Client {
   get<T>(path: string, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<T>
+  download(path: string, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<DownloadFile>
   send<T>(method: Exclude<Method, 'GET'>, path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<T>
 }
 
@@ -137,6 +180,7 @@ export function createClient(auth: { csrf?: CsrfSource; bearer?: () => string | 
 
   return {
     get: (path, options = {}) => request(path, { ...options, headers: headersFor(false, options.headers) }),
+    download: (path, options = {}) => requestFile(path, { ...options, headers: headersFor(false, options.headers) }),
     async send(method, path, body, options = {}) {
       const run = () => request<never>(path, { ...options, method, body, headers: headersFor(true, options.headers) })
       try {
