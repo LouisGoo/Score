@@ -14,6 +14,7 @@ from score_api.core.errors import install_error_handlers
 from score_api.credentials.router import router as credentials_router
 from score_api.db import Database, utc_now
 from score_api.events.router import router as events_router
+from score_api.exports.router import router as exports_router
 from score_api.judge_sessions.router import router as judge_sessions_router
 from score_api.realtime.broker import Broker, stop
 from score_api.realtime.router import router as realtime_router
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     app.include_router(auth_router)
     app.include_router(events_router)
+    app.include_router(exports_router)
     app.include_router(credentials_router)
     app.include_router(judge_sessions_router)
     app.include_router(rounds_router)
