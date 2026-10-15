@@ -13,3 +13,9 @@ coverage/
 .tools/
 
 infra/tls/
+
+# Database backups and restore drill output
+backups/
+*.sql.gz
+*.sql.gz.json
+*.sql.gz.partial

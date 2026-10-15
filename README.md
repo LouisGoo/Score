@@ -222,3 +222,12 @@ Redis 故障只中断实时通道：票据返回 503，已提交 outbox 保留�
 ## 生产部署（22）
 
 科室小范围部署使用 [部署说明](docs/deployment.md) 与 `compose.production.yaml`。只提供基础脱敏错误日志，无额外监控平台；生产配置强制 HTTPS、安全 Cookie、明确可信来源。验证结果及目标环境验收边界见 [Review 22](docs/review-22.md)。
+
+## 备份恢复与活动操作（24）
+
+- [备份、异库恢复、容量检查与保留策略](docs/backup-recovery.md)
+- [主持人活动操作手册](docs/host-guide.md)
+- [小范围上线检查单](docs/go-live-checklist.md)
+- [实现与验证证据](docs/review-24.md)
+
+运维命令：`python -m score_api.ops {backup,restore,fingerprint,storage}`。仅使用显式的备份/恢复连接环境变量，不隐式读取应用 .env；恢复只允许已创建的空 `*_restore` 库。没有自动删除或定时备份任务。

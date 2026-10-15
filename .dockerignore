@@ -12,3 +12,8 @@
 infra/tls
 **/*.pem
 **/*.key
+
+backups
+**/*.sql.gz
+**/*.sql.gz.json
+**/*.sql.gz.partial
