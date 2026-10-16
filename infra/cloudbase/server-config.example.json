@@ -1,0 +1,13 @@
+{
+  "Port": 8000,
+  "Cpu": 0.5,
+  "Mem": 1,
+  "MinNum": 1,
+  "MaxNum": 1,
+  "OpenAccessTypes": ["PUBLIC"],
+  "Dockerfile": "Dockerfile",
+  "VpcConf": {
+    "VpcId": "vpc-5cucrzze",
+    "SubnetId": "subnet-k478dqxr"
+  }
+}
