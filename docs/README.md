@@ -11,6 +11,8 @@
 | [API 文档](api.md) | 接口、认证、状态与错误约定 |
 | [提交计划](commit-plan.md) | 开发批次和历史进度 |
 | [前端计划](frontend-plan.md) | 页面分工与前端实现约定 |
+| [政工案例评审活动更新方案](political-case-review-update-plan.md) | 四维评分模板、新活动类型和专用大屏的改造方案（待实施） |
+| [政工案例评分简化方案](political-case-review-simplified-plan.md) | 复用多维度评分，增加可选大屏模板及逐项累计预览（待实施） |
 | [Review 索引](review/README.md) | 各批次实现范围和验证证据 |
 
 ## 部署与操作
