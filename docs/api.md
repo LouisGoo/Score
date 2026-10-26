@@ -5,7 +5,7 @@
 ## 1. 实现状态与文档分工
 
 **当前已实现存活/就绪、主办方认证、活动/名单草稿 CRUD、身份码管理、原子发布/复制、公开预览、评委会话及凭证重置撤销。评分任务控制、幂等写分、回执与改分历史、手动/自动收评、重开、成绩公布、排名、结束和归档已实现。管理/评委/大屏快照、大屏授权与展示设置、实时订阅及恢复、成绩与审计 CSV 导出已实现。**
-提交 02 的后端评分纯函数已由 10 接入写分校验；调用方式与边界见 [Review 02](review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review-03.md)。
+提交 02 的后端评分纯函数已由 10 接入写分校验；调用方式与边界见 [Review 02](review/review-02.md)。提交 03 新增只读就绪检查，见下文及 [Review 03](review/review-03.md)。
 本文标为“规划中”的内容来自[需求设计稿](在线打分系统-产品需求与架构设计.md)，不能用于当前联调。
 
 | 文档 | 用途 |
@@ -200,7 +200,7 @@ const response = await fetch('/api/v1/auth/login', {
 - 活动及名单增删改与 `score_event_audit` 同事务，记录 actor、action、target、前后字段、UTC 时间与 request_id，活动删除后仍保留。此审计基础因 05 写入要求提前实现，06 复用扩展；凭证等敏感数据不得加入快照。
 - 草稿接口不接受幂等键或 expected_version。行锁防止状态竞争，但不检测两个编辑者覆盖同一字段，最后提交的对应字段生效。POST 超时后先查询列表核验，禁止盲目自动重建；PATCH/DELETE 超时后先 GET 核验，删除后 404 表示已不存在。409 需刷新或修改编号；503 按 Retry-After 等待并核验是否已保存。
 
-字段以 OpenAPI 中 EventCreate/EventPatch/EventInfo、EntryCreate/EntryPatch/EntryInfo、JudgeCreate/JudgePatch/JudgeInfo 为准。入口：[events/router.py](../backend/src/score_api/events/router.py)，验证与迁移说明见 [Review 05](review-05.md)。
+字段以 OpenAPI 中 EventCreate/EventPatch/EventInfo、EntryCreate/EntryPatch/EntryInfo、JudgeCreate/JudgePatch/JudgeInfo 为准。入口：[events/router.py](../backend/src/score_api/events/router.py)，验证与迁移说明见 [Review 05](review/review-05.md)。
 
 ### 评委身份码（提交 06，已实现）
 

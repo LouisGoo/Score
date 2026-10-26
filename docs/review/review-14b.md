@@ -1,19 +1,19 @@
 # Review 14b：主办方登录与活动编辑
 
-2026-10-14。前端部分，未提交，等待用户 review。后端缺口 G2/G3 已在 `dee372f` 提交，见 [Review 14b 后端](review-14b-backend.md)；约定依据 [前端开发计划](frontend-plan.md) 第 4 节。
+2026-10-14。前端部分，未提交，等待用户 review。后端缺口 G2/G3 已在 `dee372f` 提交，见 [Review 14b 后端](review-14b-backend.md)；约定依据 [前端开发计划](../frontend-plan.md) 第 4 节。
 
 ## 范围
 
-- **会话**（[session.tsx](../frontend/src/admin/session.tsx)）：除登录页外的 `/admin/*` 经 `AdminGuard` 用 `/auth/me` 恢复会话与 CSRF；`SESSION_EXPIRED` 清空主办方缓存并跳转 `/admin/login?next=…`（只接受站内 `/admin/` 路径）。退出无论服务端成功与否都清空本机身份。会话缓存以 `null` 表示已退出，不直接移除，使页头立即更新。
+- **会话**（[session.tsx](../../frontend/src/admin/session.tsx)）：除登录页外的 `/admin/*` 经 `AdminGuard` 用 `/auth/me` 恢复会话与 CSRF；`SESSION_EXPIRED` 清空主办方缓存并跳转 `/admin/login?next=…`（只接受站内 `/admin/` 路径）。退出无论服务端成功与否都清空本机身份。会话缓存以 `null` 表示已退出，不直接移除，使页头立即更新。
 - **登录**：先取登录前 CSRF，再提交；账号规则与后端一致；失败清空密码，`INVALID_CREDENTIALS` 不区分账号或密码。
 - **活动列表**：使用 `EventListItem` 显示对象数、评委数、完成进度（终态任务数/任务数，草稿为“未发布”）；按状态分类（默认隐藏已归档）；复制（任意状态）、删除（仅草稿）均需确认。列表逐页读完（每页 100，P0 规模）。
 - **创建**：基本信息、过程规则、大屏设置；可勾选默认规则（单项 100 分、步长 0.1、平均分）。成功后进入设置页“参评对象”。
-- **设置页**（[settings/](../frontend/src/admin/settings/)）：草稿按 基本信息 → 参评对象 → 评委与身份码 → 评分规则 → 发布检查 分步，步骤条与页签同步到 `?tab=`。
+- **设置页**（[settings/](../../frontend/src/admin/settings)）：草稿按 基本信息 → 参评对象 → 评委与身份码 → 评分规则 → 发布检查 分步，步骤条与页签同步到 `?tab=`。
   - 基本信息只提交有变化的字段（草稿接口无版本校验，减少覆盖他人同时修改的其他字段）；计划时间带时区偏移发送。
   - 对象/评委：新增、编辑、删除；编号建议值保留前导零；`NUMBER_CONFLICT` 标在编号字段。
-  - 评分规则（[rule.ts](../frontend/src/admin/rule.ts)）：权重按百分比录入，用 big.js 精确换算为 ≤6 位小数的权重；本地校验与后端 `RuleInput` + 评分核心一致（模式与维度数、满分/步长整除、权重合计 100%、显式 K 范围与去极值下限 5），问题定位字段与发布检查相同。结合当前评委数提示“去极值需至少 5 人”“K 不能超过 N”，并显示自动推导的 K（与后端 `default_minimum_ballots` 逐值核对）。
+  - 评分规则（[rule.ts](../../frontend/src/admin/rule.ts)）：权重按百分比录入，用 big.js 精确换算为 ≤6 位小数的权重；本地校验与后端 `RuleInput` + 评分核心一致（模式与维度数、满分/步长整除、权重合计 100%、显式 K 范围与去极值下限 5），问题定位字段与发布检查相同。结合当前评委数提示“去极值需至少 5 人”“K 不能超过 N”，并显示自动推导的 K（与后端 `default_minimum_ballots` 逐值核对）。
   - 发布检查：读取 `publish-check`，显示对象数、评委数、实际 K、待补码数；问题项可跳转对应页签。发布被拒（422）时直接展示 `error.issues` 并重新检查。
-- **身份码**（[CredentialDialog.tsx](../frontend/src/admin/settings/CredentialDialog.tsx)）：草稿 `PUT credential`（自动生成或手动，格式与后端规范化一致）；READY/RUNNING 用 `reset-credential`（原因必填）；结束后不可操作。明文只在对话框中显示，来自本次响应，不进入查询缓存，相关变更 `gcTime: 0` 且取出后立即 `reset`；关闭需二次确认。已有活动码时提供私人邀请二维码与链接 `/join/{活动码}#code=…`；草稿无活动码时提示发布后经公共入口输入。
+- **身份码**（[CredentialDialog.tsx](../../frontend/src/admin/settings/CredentialDialog.tsx)）：草稿 `PUT credential`（自动生成或手动，格式与后端规范化一致）；READY/RUNNING 用 `reset-credential`（原因必填）；结束后不可操作。明文只在对话框中显示，来自本次响应，不进入查询缓存，相关变更 `gcTime: 0` 且取出后立即 `reset`；关闭需二次确认。已有活动码时提供私人邀请二维码与链接 `/join/{活动码}#code=…`；草稿无活动码时提示发布后经公共入口输入。
 - **发布**：确认框说明冻结范围与补码数量；成功后由页面持有补码明文并弹出（发布后面板切换为只读不会丢失）。结果未知（超时/断网/503）不重发，先 `GET publication` 核验：已发布则提示明文无法取回需逐个重置；未发布则可重试。
 - **发布后**：设置页只读（G4 不补）；规则展示冻结的 K 与 N；“发布信息”页签显示活动码、加入链接和公共二维码（只含活动码，地址取 `VITE_PUBLIC_BASE_URL`，缺省当前站点）。
 - **API 层**：`ApiError.issues` 解析错误包装中的 `error.issues`（只保留结构完整的项）；新增 `adminEvents` 接口函数与 `adminEvent` 缓存键前缀，写操作后整体失效。
@@ -36,7 +36,7 @@ npm test         # 6 files, 76 passed（14a 50 项 + 本批 26 项）
 npm run build    # 类型检查 + 构建通过
 ```
 
-新增测试：[规则与表单工具](../frontend/src/admin/admin-utils.test.ts)（权重换算、字段定位、K 推导、身份码格式、跳转白名单、PATCH 差异），[页面流程](../frontend/src/admin/pages.test.tsx)（登录 CSRF 与跳转、错误登录、退出失败仍清空、创建、规则保存精确权重、列表删除确认、发布问题跳转、发布后明文只在对话框、发布 422 展示问题、发布结果未知核验、草稿设置码、发布后重置需原因），[路由](../frontend/src/router.test.tsx)（未登录跳转登录页并保留返回路径），[API](../frontend/src/api/api.test.ts)（issues 解析）。
+新增测试：[规则与表单工具](../../frontend/src/admin/admin-utils.test.ts)（权重换算、字段定位、K 推导、身份码格式、跳转白名单、PATCH 差异），[页面流程](../../frontend/src/admin/pages.test.tsx)（登录 CSRF 与跳转、错误登录、退出失败仍清空、创建、规则保存精确权重、列表删除确认、发布问题跳转、发布后明文只在对话框、发布 422 展示问题、发布结果未知核验、草稿设置码、发布后重置需原因），[路由](../../frontend/src/router.test.tsx)（未登录跳转登录页并保留返回路径），[API](../../frontend/src/api/api.test.ts)（issues 解析）。
 
 本地联调：后端连接本机独立 MySQL（13306）中新建的 `score_ui` 库，仅用环境变量配置，不读取 `backend/.env`、未连接远端数据库；本机账号 `ui.host` 仅存在于该库。浏览器完成：登录失败/成功 → 创建 → 两个对象（含重复编号报错）→ 三位评委与手动码 → 多维规则（权重合计报错、去极值人数提示）→ 发布检查（K=3、待补码 2）→ 发布并查看两位评委补码与私人邀请二维码 → 只读状态与公共入口 → 发布后重置身份码（原因必填、版本 +1）→ 列表进度 0/2 → 复制（新草稿身份码均未设置）并删除 → 刷新保持登录 → 退出后访问受保护页跳回登录。
 

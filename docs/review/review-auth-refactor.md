@@ -8,18 +8,18 @@
 
 | 位置 | 职责 |
 | --- | --- |
-| [main.py](../backend/src/score_api/main.py) | 应用工厂、生命周期、路由注册和健康检查 |
-| [core/config.py](../backend/src/score_api/core/config.py) | 应用与数据库配置 |
-| [core/errors.py](../backend/src/score_api/core/errors.py) | 请求 ID、来源校验和错误包装 |
-| [core/security.py](../backend/src/score_api/core/security.py) | 密码哈希、账号规范化和令牌工具 |
-| [auth/router.py](../backend/src/score_api/auth/router.py) | HTTP 输入输出、Cookie、调用认证服务 |
-| [auth/schemas.py](../backend/src/score_api/auth/schemas.py) | 请求与响应模型 |
-| [auth/dependencies.py](../backend/src/score_api/auth/dependencies.py) | 请求会话提取、CSRF 校验、require_admin |
-| [auth/service.py](../backend/src/score_api/auth/service.py) | 身份查询、登录、退出、限流和认证审计事务 |
-| [auth/models.py](../backend/src/score_api/auth/models.py) | 四张认证表的 ORM 模型 |
-| [auth/cli.py](../backend/src/score_api/auth/cli.py) | 交互式管理员建号 |
-| [db.py](../backend/src/score_api/db.py)、[scoring.py](../backend/src/score_api/scoring.py) | 保留独立连接/事务基础和评分纯函数 |
-| [migrations/env.py](../backend/src/score_api/migrations/env.py) | 显式导入新位置的 ORM 模型；迁移历史保持原位 |
+| [main.py](../../backend/src/score_api/main.py) | 应用工厂、生命周期、路由注册和健康检查 |
+| [core/config.py](../../backend/src/score_api/core/config.py) | 应用与数据库配置 |
+| [core/errors.py](../../backend/src/score_api/core/errors.py) | 请求 ID、来源校验和错误包装 |
+| [core/security.py](../../backend/src/score_api/core/security.py) | 密码哈希、账号规范化和令牌工具 |
+| [auth/router.py](../../backend/src/score_api/auth/router.py) | HTTP 输入输出、Cookie、调用认证服务 |
+| [auth/schemas.py](../../backend/src/score_api/auth/schemas.py) | 请求与响应模型 |
+| [auth/dependencies.py](../../backend/src/score_api/auth/dependencies.py) | 请求会话提取、CSRF 校验、require_admin |
+| [auth/service.py](../../backend/src/score_api/auth/service.py) | 身份查询、登录、退出、限流和认证审计事务 |
+| [auth/models.py](../../backend/src/score_api/auth/models.py) | 四张认证表的 ORM 模型 |
+| [auth/cli.py](../../backend/src/score_api/auth/cli.py) | 交互式管理员建号 |
+| [db.py](../../backend/src/score_api/db.py)、[scoring.py](../../backend/src/score_api/scoring.py) | 保留独立连接/事务基础和评分纯函数 |
+| [migrations/env.py](../../backend/src/score_api/migrations/env.py) | 显式导入新位置的 ORM 模型；迁移历史保持原位 |
 
 服务层接收数据库、配置、时钟及必要业务参数，不接收 HTTP Request/Response。HTTP 路由完成 Cookie 与 CSRF 处理后调用服务，服务提交成功才写响应。原有事务边界、密码计算时释放连接、来源→账号锁顺序、会话撤销与审计原子性保持。
 

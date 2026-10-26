@@ -6,12 +6,12 @@
 
 ## 交付范围
 
-- [db.py](../backend/src/score_api/db.py)：SQLAlchemy 2、MySQL/PyMySQL、InnoDB 模型基类、UTC DATETIME(6)、显式事务边界及进程连接预算。
-- [config.py](../backend/src/score_api/core/config.py)：服务端 DATABASE_URL（SecretStr）及有界等待配置。
-- [migrations](../backend/src/score_api/migrations/) 与 [alembic.ini](../backend/alembic.ini)：基线 `0003_database_baseline`。只创建 Alembic 版本表，不提前建立业务表。
-- [main.py](../backend/src/score_api/main.py)：进程生命周期内创建和释放数据库资源；新增 GET /api/v1/health/ready。
-- [compose.yaml](../compose.yaml)：本地 MySQL 8.0.40、Redis 7.4.2；[初始化 SQL](../infra/mysql/init-test-db.sql) 提供独立测试库。
-- [test_db.py](../backend/tests/test_db.py)、[test_mysql.py](../backend/tests/test_mysql.py)：配置、时间、就绪、真实数据库事务、池等待和行锁验证。
+- [db.py](../../backend/src/score_api/db.py)：SQLAlchemy 2、MySQL/PyMySQL、InnoDB 模型基类、UTC DATETIME(6)、显式事务边界及进程连接预算。
+- [config.py](../../backend/src/score_api/core/config.py)：服务端 DATABASE_URL（SecretStr）及有界等待配置。
+- [migrations](../../backend/src/score_api/migrations) 与 [alembic.ini](../../backend/alembic.ini)：基线 `0003_database_baseline`。只创建 Alembic 版本表，不提前建立业务表。
+- [main.py](../../backend/src/score_api/main.py)：进程生命周期内创建和释放数据库资源；新增 GET /api/v1/health/ready。
+- [compose.yaml](../../compose.yaml)：本地 MySQL 8.0.40、Redis 7.4.2；[初始化 SQL](../../infra/mysql/init-test-db.sql) 提供独立测试库。
+- [test_db.py](../../backend/tests/test_db.py)、[test_mysql.py](../../backend/tests/test_mysql.py)：配置、时间、就绪、真实数据库事务、池等待和行锁验证。
 - CI 新增 MySQL 8.0.40 服务，更新依赖及锁文件、README、接口文档与提交计划。
 
 worker 本批仅提供独立连接预算及构造入口；任务扫描和 outbox worker 分别在后续批次实现。Redis 本批只提供本地服务，不参与应用就绪判断。

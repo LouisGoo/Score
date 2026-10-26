@@ -6,12 +6,12 @@
 
 ## 范围与入口
 
-- [events/router.py](../backend/src/score_api/events/router.py)：15 个活动、对象和评委 CRUD 端点，复用主办方会话、Origin/CSRF 与统一错误；分页有界，显式响应模型。
-- [events/schemas.py](../backend/src/score_api/events/schemas.py)：基本信息、过程/展示设置、草稿评分规则，PATCH 缺省/null 语义与只读字段保护。复用计分纯函数验证规则，数值输入限定长度和精度。
-- [events/service.py](../backend/src/score_api/events/service.py)：owner 过滤、路径与子资源绑定、活动行锁、锁内草稿状态检查、业务与审计同事务。
-- [events/models.py](../backend/src/score_api/events/models.py)、[0005_event_drafts.py](../backend/src/score_api/migrations/versions/0005_event_drafts.py)：四张 InnoDB 表，活动、对象、评委、活动审计；名单 `(event_id, number)` 唯一，编号采用 utf8mb4_bin，保留前导零并区分大小写。
-- [test_events.py](../backend/tests/test_events.py)、[test_events_mysql.py](../backend/tests/test_events_mysql.py)：输入边界、OpenAPI/鉴权、真实 MySQL CRUD/隔离/约束/回滚/并发测试。
-- [API 文档](api.md)、[README](../README.md)、[提交计划](commit-plan.md)：实现状态、调用示例、失败与重试规则、迁移说明。
+- [events/router.py](../../backend/src/score_api/events/router.py)：15 个活动、对象和评委 CRUD 端点，复用主办方会话、Origin/CSRF 与统一错误；分页有界，显式响应模型。
+- [events/schemas.py](../../backend/src/score_api/events/schemas.py)：基本信息、过程/展示设置、草稿评分规则，PATCH 缺省/null 语义与只读字段保护。复用计分纯函数验证规则，数值输入限定长度和精度。
+- [events/service.py](../../backend/src/score_api/events/service.py)：owner 过滤、路径与子资源绑定、活动行锁、锁内草稿状态检查、业务与审计同事务。
+- [events/models.py](../../backend/src/score_api/events/models.py)、[0005_event_drafts.py](../../backend/src/score_api/migrations/versions/0005_event_drafts.py)：四张 InnoDB 表，活动、对象、评委、活动审计；名单 `(event_id, number)` 唯一，编号采用 utf8mb4_bin，保留前导零并区分大小写。
+- [test_events.py](../../backend/tests/test_events.py)、[test_events_mysql.py](../../backend/tests/test_events_mysql.py)：输入边界、OpenAPI/鉴权、真实 MySQL CRUD/隔离/约束/回滚/并发测试。
+- [API 文档](../api.md)、[README](../../README.md)、[提交计划](../commit-plan.md)：实现状态、调用示例、失败与重试规则、迁移说明。
 
 ## Review 重点
 

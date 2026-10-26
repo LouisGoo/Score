@@ -1,5 +1,7 @@
 # CloudBase 部署
 
+最近一次只读检查见 [2026-10-26 连接检查](cloudbase-connection-check.md)：后端及数据库就绪，默认前端域名的附件响应与同源 API 路由问题仍存在。下文 2026-10-16 的版本、网络及权限信息为历史部署记录。
+
 本部署对应 `cb` 分支、上海国内站环境 `lytfree-d0gbqrris2c23bd09`。
 前端采用静态托管，后端使用容器型云托管，数据库采用环境已有的 MySQL 8.0。
 现有 SQLAlchemy、事务和 Alembic 迁移保持不变。

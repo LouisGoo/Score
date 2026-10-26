@@ -49,8 +49,8 @@ npm run build
 
 ## Review 重点与边界
 
-- [验收证据索引](acceptance-21.md) 逐项标记证据层次；没有把分散的单元测试写成真实终端全流程结果。
-- [实机验收记录](device-acceptance.md) 单独维护，iOS/Android/微信均明确待测。
+- [验收证据索引](../acceptance-21.md) 逐项标记证据层次；没有把分散的单元测试写成真实终端全流程结果。
+- [实机验收记录](../device-acceptance.md) 单独维护，iOS/Android/微信均明确待测。
 - 本批闭环使用 TestClient + 真 MySQL；前端回归使用 jsdom，未新增浏览器点击全流程。已有真实 Chrome 下载和布局证据见 Review 20b。本批不声明摄像头扫码、移动 OS 后台恢复或微信下载已通过。
 - 多进程和 Redis 集成随全量后端复验；生产强制重启/网络中断及容量演练仍归 23，备份恢复归 24。
 

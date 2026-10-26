@@ -12,7 +12,7 @@
 - 日志每容器 3 × 5MB。Nginx 仅输出不含 URI 的 5xx 日志，禁用可能暴露 WS 票据的原生请求错误日志。
 - 沿用既有 live/ready 和 Redis 故障时 HTTP/轮询降级；未变更接口响应、数据库结构或业务规则。
 
-入口：[部署说明](deployment.md)。CI 新增生产 Compose 校验、镜像构建及 Nginx TLS 配置检查。
+入口：[部署说明](../deployment.md)。CI 新增生产 Compose 校验、镜像构建及 Nginx TLS 配置检查。
 
 ## 已运行验证（2026-10-15）
 

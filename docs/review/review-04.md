@@ -8,14 +8,14 @@
 
 ## 范围与文件入口
 
-- [auth/cli.py](../backend/src/score_api/auth/cli.py)：终端隐藏输入及确认密码、规范化账号、拒绝重复建号；账号与认证审计同事务。没有终端时拒绝降级到回显密码输入，无公开注册接口。
-- [security.py](../backend/src/score_api/core/security.py)：标准库 scrypt，N=131072、r=8、p=1、16 字节随机盐、32 字节派生结果；常量时间比较，不存在账号执行同成本计算；单进程同时最多两次计算。不新增第三方依赖。
-- [auth/router.py](../backend/src/score_api/auth/router.py)：登录前 CSRF、登录、当前身份与退出；授权依赖已拆至 [dependencies.py](../backend/src/score_api/auth/dependencies.py)，数据库共享限流与认证审计已拆至 [service.py](../backend/src/score_api/auth/service.py)。
-- [models.py](../backend/src/score_api/auth/models.py)、[0004_admin_auth.py](../backend/src/score_api/migrations/versions/0004_admin_auth.py)：四张 InnoDB 表，管理员、会话、限流计数及认证审计；Alembic 元数据注册、升级与降级。
-- [errors.py](../backend/src/score_api/core/errors.py)、[main.py](../backend/src/score_api/main.py)：精确 Origin 校验、服务端 request_id、422/HTTP/数据库/未知异常脱敏包装、API 禁止缓存；保留原有探测响应体。
-- [config.py](../backend/src/score_api/core/config.py)、[.env.example](../backend/.env.example)：可信来源、Secure Cookie、绝对会话期限及限流配置。
-- [test_auth.py](../backend/tests/test_auth.py)、[test_auth_mysql.py](../backend/tests/test_auth_mysql.py)：密码、安全边界、真实 MySQL 认证/事务/并发测试；原 MySQL fixture 移入 [conftest.py](../backend/tests/conftest.py) 复用。
-- [接口文档](api.md)、[README](../README.md)、[提交计划](commit-plan.md)：调用顺序、建号方法、错误及重试约定、当前进度。
+- [auth/cli.py](../../backend/src/score_api/auth/cli.py)：终端隐藏输入及确认密码、规范化账号、拒绝重复建号；账号与认证审计同事务。没有终端时拒绝降级到回显密码输入，无公开注册接口。
+- [security.py](../../backend/src/score_api/core/security.py)：标准库 scrypt，N=131072、r=8、p=1、16 字节随机盐、32 字节派生结果；常量时间比较，不存在账号执行同成本计算；单进程同时最多两次计算。不新增第三方依赖。
+- [auth/router.py](../../backend/src/score_api/auth/router.py)：登录前 CSRF、登录、当前身份与退出；授权依赖已拆至 [dependencies.py](../../backend/src/score_api/auth/dependencies.py)，数据库共享限流与认证审计已拆至 [service.py](../../backend/src/score_api/auth/service.py)。
+- [models.py](../../backend/src/score_api/auth/models.py)、[0004_admin_auth.py](../../backend/src/score_api/migrations/versions/0004_admin_auth.py)：四张 InnoDB 表，管理员、会话、限流计数及认证审计；Alembic 元数据注册、升级与降级。
+- [errors.py](../../backend/src/score_api/core/errors.py)、[main.py](../../backend/src/score_api/main.py)：精确 Origin 校验、服务端 request_id、422/HTTP/数据库/未知异常脱敏包装、API 禁止缓存；保留原有探测响应体。
+- [config.py](../../backend/src/score_api/core/config.py)、[.env.example](../../backend/.env.example)：可信来源、Secure Cookie、绝对会话期限及限流配置。
+- [test_auth.py](../../backend/tests/test_auth.py)、[test_auth_mysql.py](../../backend/tests/test_auth_mysql.py)：密码、安全边界、真实 MySQL 认证/事务/并发测试；原 MySQL fixture 移入 [conftest.py](../../backend/tests/conftest.py) 复用。
+- [接口文档](../api.md)、[README](../../README.md)、[提交计划](../commit-plan.md)：调用顺序、建号方法、错误及重试约定、当前进度。
 
 ## 关键行为与 review 重点
 

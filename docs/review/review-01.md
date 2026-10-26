@@ -13,15 +13,15 @@
 - frontend：React + TypeScript + Vite 开发预览页、API 连通检查、5 秒超时及手动重试、窄屏布局。
 - 固定前后端依赖；GitHub Actions 运行后端检查与前端构建。
 - 运行说明包含 WSL/Linux 安装、启动、检查命令。
-- [接口文档](api.md)：记录已实现存活接口，单独标注规划中的认证、权限、幂等、错误与实时协议；README 提供入口，后续接口提交同步维护。
+- [接口文档](../api.md)：记录已实现存活接口，单独标注规划中的认证、权限、幂等、错误与实时协议；README 提供入口，后续接口提交同步维护。
 
 ## 建议 review 顺序
 
-1. [开发计划](commit-plan.md)：范围和节奏是否符合你的预期。
-2. [README](../README.md)：本地开发是否清晰。
-3. [后端入口](../backend/src/score_api/main.py) 与 [配置](../backend/src/score_api/core/config.py)：应用工厂、存活接口边界。
-4. [前端页面](../frontend/src/App.tsx) 与 [代理配置](../frontend/vite.config.ts)：连通检查、取消请求、失败重试。
-5. [CI](../.github/workflows/checks.yml) 和依赖锁文件：验证与安装是否可复现。
+1. [开发计划](../commit-plan.md)：范围和节奏是否符合你的预期。
+2. [README](../../README.md)：本地开发是否清晰。
+3. [后端入口](../../backend/src/score_api/main.py) 与 [配置](../../backend/src/score_api/core/config.py)：应用工厂、存活接口边界。
+4. [前端路由（当前入口）](../../frontend/src/router.tsx) 与 [代理配置](../../frontend/vite.config.ts)：连通检查、取消请求、失败重试。
+5. [CI](../../.github/workflows/checks.yml) 和依赖锁文件：验证与安装是否可复现。
 
 ## 验证记录
 

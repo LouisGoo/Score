@@ -1,21 +1,21 @@
 # Review 15：评分控制台
 
-2026-10-14。未提交，等待用户 review。基于 14b（`32d0ac9`）；未改后端和接口，`api.md` 无需更新。约定依据 [前端开发计划](frontend-plan.md) 第 4 节。
+2026-10-14。未提交，等待用户 review。基于 14b（`32d0ac9`）；未改后端和接口，`api.md` 无需更新。约定依据 [前端开发计划](../frontend-plan.md) 第 4 节。
 
 ## 范围
 
-- **控制台**（[EventControlPage.tsx](../frontend/src/admin/control/EventControlPage.tsx)，`/admin/events/:id/control`）：左侧对象列表（状态、已交/应交，公布后显示成绩），中间当前对象面板，右侧评委状态。选中对象写入 `?round=`；未指定时默认“进行中 → 已收评待处理 → 第一个待评”。对某对象操作前先固定选中，操作后停留在该对象核对结果，不会跳到下一个。
-- **任务控制**（[RoundPanel.tsx](../frontend/src/admin/control/RoundPanel.tsx)）：按状态只显示可用操作。
+- **控制台**（[EventControlPage.tsx](../../frontend/src/admin/control/EventControlPage.tsx)，`/admin/events/:id/control`）：左侧对象列表（状态、已交/应交，公布后显示成绩），中间当前对象面板，右侧评委状态。选中对象写入 `?round=`；未指定时默认“进行中 → 已收评待处理 → 第一个待评”。对某对象操作前先固定选中，操作后停留在该对象核对结果，不会跳到下一个。
+- **任务控制**（[RoundPanel.tsx](../../frontend/src/admin/control/RoundPanel.tsx)）：按状态只显示可用操作。
   - 待评分：开始评分（确认框列出应交人数 N、规则、K、时长、改分策略；已有进行中对象时禁用并提示）、跳过（原因必填）。
   - 评分中：收评、暂停（过截止时间后隐藏暂停，提示等待自动收评或手动收评）。已暂停：恢复、收评。
   - 已收评：公布成绩（仅当已形成成绩；确认框列出成绩、有效/应交、剔除和缺交数）、重开补评（原因必填，可限时或不限时，默认活动时长）、标记无结果（仅未达 K 时，原因必填）。
   - 收评：未收齐时提示“已交 x / 应交 N”，原因必填；已交少于 K 时说明收评后不能公布。全部交齐时原因可不填。
   - 倒计时按 `deadline_at` 与服务端时钟偏差本地计算；暂停显示冻结的剩余时间。
-- **结果核对**（[ResultReview.tsx](../frontend/src/admin/control/ResultReview.tsx)）：能否公布、最终成绩、有效/应交、K、算法及剔除份数、收评方式/时间/原因、缺交名单（不计零分）、各评委个人总分（两位小数，悬停看未舍入值）、版本与剔除标记。评委和缺交按评委编号排列。只读，无改分或代填入口。
-- **评委状态**（[JudgePanel.tsx](../frontend/src/admin/control/JudgePanel.tsx)）：开评后显示已交（改过分时显示“第 n 版”）或未交与提交时间，不显示分数。在线状态随 18（G5）；活动进行中提供“重置身份码”入口，跳到设置页评委页签（复用 14b 对话框）。
+- **结果核对**（[ResultReview.tsx](../../frontend/src/admin/control/ResultReview.tsx)）：能否公布、最终成绩、有效/应交、K、算法及剔除份数、收评方式/时间/原因、缺交名单（不计零分）、各评委个人总分（两位小数，悬停看未舍入值）、版本与剔除标记。评委和缺交按评委编号排列。只读，无改分或代填入口。
+- **评委状态**（[JudgePanel.tsx](../../frontend/src/admin/control/JudgePanel.tsx)）：开评后显示已交（改过分时显示“第 n 版”）或未交与提交时间，不显示分数。在线状态随 18（G5）；活动进行中提供“重置身份码”入口，跳到设置页评委页签（复用 14b 对话框）。
 - **结束与归档**：结束前先在本地检查未处理对象，有则弹出列表（状态、待办提示、“定位”）而不发请求；服务端返回 `UNFINISHED_ROUNDS` 时把消息中的任务 ID 映射为对象编号和名称，未知 ID 原样提示刷新核对（G7）。结束后控制台只读，可归档。
-- **成绩与记录页**（[EventResultsPage.tsx](../frontend/src/admin/control/EventResultsPage.tsx)，`/admin/events/:id/results`）：当前/最终排名（仅已公布对象），各对象状态、有效/应交、成绩、收评次数；展开显示历次收评快照（最新在前，标出当前结果）和评分版本记录（评委、版本、个人总分、提交时间、回执号）。导出入口留待 20。
-- **同步**（[data.ts](../frontend/src/admin/control/data.ts)）：管理快照有进行中或暂停对象时每 3 秒，否则每 10 秒，均带 ±20% 抖动；活动结束或归档后停止；页面在后台时暂停，回到前台立即刷新。乱序到达的旧版本快照被丢弃。同步失败时保留旧数据并提示“显示的是 hh:mm:ss 的数据”。
+- **成绩与记录页**（[EventResultsPage.tsx](../../frontend/src/admin/control/EventResultsPage.tsx)，`/admin/events/:id/results`）：当前/最终排名（仅已公布对象），各对象状态、有效/应交、成绩、收评次数；展开显示历次收评快照（最新在前，标出当前结果）和评分版本记录（评委、版本、个人总分、提交时间、回执号）。导出入口留待 20。
+- **同步**（[data.ts](../../frontend/src/admin/control/data.ts)）：管理快照有进行中或暂停对象时每 3 秒，否则每 10 秒，均带 ±20% 抖动；活动结束或归档后停止；页面在后台时暂停，回到前台立即刷新。乱序到达的旧版本快照被丢弃。同步失败时保留旧数据并提示“显示的是 hh:mm:ss 的数据”。
 - **其他**：`adminConsole` 接口函数、快照相关类型别名、`formatScore`（ROUND_HALF_UP 两位）、`useNow`、任务状态标签；草稿活动打开控制台时提示先发布并链接到发布检查。
 
 ## Review 重点
@@ -40,7 +40,7 @@ npm run build    # 类型检查 + 构建通过
 ```
 
 新增测试：
-- [控制台流程](../frontend/src/admin/control/control.test.tsx)，11 项：
+- [控制台流程](../../frontend/src/admin/control/control.test.tsx)，11 项：
   - 开评确认 N/时长/K，CSRF 与版本，无分数输入框；
   - 暂停遇 `VERSION_CONFLICT` 刷新且不重发；
   - 未收齐收评原因必填（AT-13）；
@@ -52,7 +52,7 @@ npm run build    # 类型检查 + 构建通过
   - 评委状态无分数；
   - 草稿提示；
   - 成绩页排名、收评历史与回执。
-- [控制台工具](../frontend/src/admin/control/model.test.ts)，6 项：默认选中、下一个待评、未完成判断、任务 ID 解析、评委状态、成绩舍入。
+- [控制台工具](../../frontend/src/admin/control/model.test.ts)，6 项：默认选中、下一个待评、未完成判断、任务 ID 解析、评委状态、成绩舍入。
 
 远端库联调（用户已授权；账号 `test`；测试活动“联调 15 控制台演示”，3 个对象、5 位评委、平均分、K=4、600 秒；评委交分由本地脚本经 HTTP 模拟）：
 

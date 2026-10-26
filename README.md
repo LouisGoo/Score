@@ -2,7 +2,10 @@
 
 为固定评委的比赛、答辩和项目评审提供主持人控制台、手机评分与只读大屏。
 
-目前开发至 **21：完整评分流程自动化验收**，保留未提交变更供 review。新增真实 MySQL 上的 5 评委/3 对象创建至归档闭环，覆盖两种算法、跨角色隔离、导出一致性、并发提交/重开及失败重试。见 [Review 21](docs/review-21.md)、[AT 验收证据](docs/acceptance-21.md) 和独立的[实机待测记录](docs/device-acceptance.md)。后续为 22～24 的运维、容量与操作手册。
+评分流程、生产部署和备份恢复工具已实现（阶段 01～22、24）；阶段 23 的完整容量/故障演练及真实设备验收仍待完成。历史验证见 [Review 索引](docs/review/README.md)，正式上线状态以[上线检查单](docs/go-live-checklist.md)和 [CloudBase 检查记录](docs/cloudbase-connection-check.md)为准。
+
+- [文档导航](docs/README.md)
+- [CloudBase 部署](docs/cloudbase-deployment.md)
 
 - [需求与架构设计](./docs/在线打分系统-产品需求与架构设计.md)
 - [接口文档与业务约定](./docs/api.md)
@@ -68,7 +71,7 @@ npm ci
 ```
 
 如果 Ubuntu 提示缺少 ensurepip，先安装匹配 Python 版本的 venv 系统包。
-本次工作目录已准备好项目虚拟环境，无需重复创建；不依赖全局 Python 包。
+已有 `.venv` 时可复用；新工作目录需按上述步骤创建，不依赖全局 Python 包。
 
 终端一（从仓库根目录）：
 
@@ -94,7 +97,7 @@ API 文档：http://localhost:8000/docs 。本地服务默认仅监听本机，�
 
 ## 数据库与迁移
 
-当前远端已于 2026-10-13 升级至 **0013_snapshots**，Alembic check 与 ready=200 核验通过，既有数据保留，凭证 HMAC 密钥已配置。11～13 最终完整后端 **312 passed**，前端构建通过，远端 worker 单批检查通过。下文较早批次的远端说明为历史记录；最新证据见 [Review 13](docs/review-13.md)。
+当前远端已于 2026-10-13 升级至 **0013_snapshots**，Alembic check 与 ready=200 核验通过，既有数据保留，凭证 HMAC 密钥已配置。11～13 最终完整后端 **312 passed**，前端构建通过，远端 worker 单批检查通过。下文较早批次的远端说明为历史记录；最新证据见 [Review 13](docs/review/review-13.md)。
 
 本地开发可在仓库根目录执行：
 
@@ -140,7 +143,7 @@ CLI 通过隐藏输入两次确认密码；密码为 12～128 个字符，不通
 
 ## 验证
 
-到期收评需在 `backend` 目录独立运行 `../.venv/bin/python -m score_api.worker`；仅运行 API 不会自动改变到期任务状态，但提交接口始终拒绝过期评分。`--once` 处理一批后退出，`--batch-size 50` 控制批量。启动前检查迁移版本，不自动迁移；连接预算 2，失败/空闲退避，支持正常停止及重启恢复。详见 [Review 12](docs/review-12.md)。
+到期收评需在 `backend` 目录独立运行 `../.venv/bin/python -m score_api.worker`；仅运行 API 不会自动改变到期任务状态，但提交接口始终拒绝过期评分。`--once` 处理一批后退出，`--batch-size 50` 控制批量。启动前检查迁移版本，不自动迁移；连接预算 2，失败/空闲退避，支持正常停止及重启恢复。详见 [Review 12](docs/review/review-12.md)。
 
 从仓库根目录：
 
@@ -170,7 +173,7 @@ CI 使用 MySQL 8.0.40 服务执行完整后端检查。构建已含 TypeScript 
 分数、满分、步长及权重传入十进制字符串或 `Decimal`，权重按 0～1 配置且合计为 1；拒绝 float、空值及 NaN/Infinity。
 汇总从原始维度分重新计算，保留各评委原始分和去极值标记；未达到 K 份时 `final_score=None`。
 最终成绩按 `ROUND_HALF_UP` 保留两位小数，已公布成绩按 1、2、2、4 并列排名。
-本模块无需数据库或 HTTP 服务；完整调用示例、数值约定与验收证据见 [Review 02](./docs/review-02.md)。
+本模块无需数据库或 HTTP 服务；完整调用示例、数值约定与验收证据见 [Review 02](docs/review/review-02.md)。
 
 真实数据库密码、会话密钥和个人身份码不得写入前端、源码或日志。
 .env 已被 Git 忽略，.env.example 只放示例配置。
@@ -178,17 +181,17 @@ CI 使用 MySQL 8.0.40 服务执行完整后端检查。构建已含 TypeScript 
 
 参考：[Vite 官方指南](https://vite.dev/guide/)、[FastAPI 官方入门](https://fastapi.tiangolo.com/tutorial/first-steps/)。
 
-06 新增迁移 `0006_judge_credentials`，扩展评委凭证字段、完整性和唯一约束；运行凭证接口前需配置独立稳定的 `SCORE_CREDENTIAL_HMAC_KEY`，详见 [API 文档](docs/api.md) 与 [Review 06](docs/review-06.md)。本次只升级本地独立测试库。
+06 新增迁移 `0006_judge_credentials`，扩展评委凭证字段、完整性和唯一约束；运行凭证接口前需配置独立稳定的 `SCORE_CREDENTIAL_HMAC_KEY`，详见 [API 文档](docs/api.md) 与 [Review 06](docs/review/review-06.md)。本次只升级本地独立测试库。
 
-07 新增迁移 `0007_event_publication`，扩展活动发布字段并建立发布快照、评分任务、应交评委表与复合外键。发布和复制均与审计同事务，见 [Review 07](docs/review-07.md)。仅对本地独立测试库执行迁移。
+07 新增迁移 `0007_event_publication`，扩展活动发布字段并建立发布快照、评分任务、应交评委表与复合外键。发布和复制均与审计同事务，见 [Review 07](docs/review/review-07.md)。仅对本地独立测试库执行迁移。
 
-08 新增迁移 `0008_judge_sessions`，建立独立评委会话、一次性确认令牌和评委认证审计，生成列唯一约束保证每位评委至多一条未撤销会话。兑换流程为 `/judge-sessions/csrf` → `/verify` → 用户确认姓名编号 → `/exchange`；`/me` 恢复身份，`/logout` 撤销。重置需填写原因并同时撤销旧会话和旧确认令牌。详见 [API 文档](docs/api.md) 与 [Review 08](docs/review-08.md)。
+08 新增迁移 `0008_judge_sessions`，建立独立评委会话、一次性确认令牌和评委认证审计，生成列唯一约束保证每位评委至多一条未撤销会话。兑换流程为 `/judge-sessions/csrf` → `/verify` → 用户确认姓名编号 → `/exchange`；`/me` 恢复身份，`/logout` 撤销。重置需填写原因并同时撤销旧会话和旧确认令牌。详见 [API 文档](docs/api.md) 与 [Review 08](docs/review/review-08.md)。
 
 06～08 均只在独立本地测试库迁移验收，未连接/升级远程业务库，未修改 `.env`。部署前显式迁移选定目标库到 head，并先配置稳定独立的 `SCORE_CREDENTIAL_HMAC_KEY`；各 API 进程共享同一密钥，密钥独立备份。现有前端仍为工程骨架，管理/评委页面在 14～16 批次交付。
 
-09 新增迁移 `0009_round_controls`。2026-10-13 已按授权将远端从 05 补齐至 09，项目业务表迁移前均为空，旧表及记录数保留，Alembic check 与 ready=200 核验通过。此记录取代上文的历史远端版本说明。当前配置仍须在使用身份码前设置稳定的 `SCORE_CREDENTIAL_HMAC_KEY`。详见 [Review 09](docs/review-09.md)。
+09 新增迁移 `0009_round_controls`。2026-10-13 已按授权将远端从 05 补齐至 09，项目业务表迁移前均为空，旧表及记录数保留，Alembic check 与 ready=200 核验通过。此记录取代上文的历史远端版本说明。当前配置仍须在使用身份码前设置稳定的 `SCORE_CREDENTIAL_HMAC_KEY`。详见 [Review 09](docs/review/review-09.md)。
 
-10 新增迁移 `0010_ballots`，建立逻辑评分单、原始评分历史、永久幂等回执、评委评分审计与 outbox 五张表。PUT/GET `/api/v1/rounds/{id}/my-ballot` 支持提交、改分和本人回执核验；任务锁内验证状态/截止，死锁及锁超时完整事务最多重试 3 次。事务成功后才返回回执，改分不增加已交人数。详见 [API 文档](docs/api.md) 与 [Review 10](docs/review-10.md)。
+10 新增迁移 `0010_ballots`，建立逻辑评分单、原始评分历史、永久幂等回执、评委评分审计与 outbox 五张表。PUT/GET `/api/v1/rounds/{id}/my-ballot` 支持提交、改分和本人回执核验；任务锁内验证状态/截止，死锁及锁超时完整事务最多重试 3 次。事务成功后才返回回执，改分不增加已交人数。详见 [API 文档](docs/api.md) 与 [Review 10](docs/review/review-10.md)。
 
 2026-10-13：10 已同步到远端 `0010_ballots`，本地完整后端 **287 passed**，前端构建通过。迁移仅增加项目结构，既有表及记录数保留；尚未配置的身份码 HMAC 密钥须在正式使用前补齐。
 
@@ -202,13 +205,13 @@ Redis 故障只中断实时通道：票据返回 503，已提交 outbox 保留�
 
 ## 生产部署（22）
 
-科室小范围部署使用 [部署说明](docs/deployment.md) 与 `compose.production.yaml`。只提供基础脱敏错误日志，无额外监控平台；生产配置强制 HTTPS、安全 Cookie、明确可信来源。验证结果及目标环境验收边界见 [Review 22](docs/review-22.md)。
+科室小范围部署使用 [部署说明](docs/deployment.md) 与 `compose.production.yaml`。只提供基础脱敏错误日志，无额外监控平台；生产配置强制 HTTPS、安全 Cookie、明确可信来源。验证结果及目标环境验收边界见 [Review 22](docs/review/review-22.md)。
 
 ## 备份恢复与活动操作（24）
 
 - [备份、异库恢复、容量检查与保留策略](docs/backup-recovery.md)
 - [主持人活动操作手册](docs/host-guide.md)
 - [小范围上线检查单](docs/go-live-checklist.md)
-- [实现与验证证据](docs/review-24.md)
+- [实现与验证证据](docs/review/review-24.md)
 
 运维命令：`python -m score_api.ops {backup,restore,fingerprint,storage}`。仅使用显式的备份/恢复连接环境变量，不隐式读取应用 .env；恢复只允许已创建的空 `*_restore` 库。没有自动删除或定时备份任务。

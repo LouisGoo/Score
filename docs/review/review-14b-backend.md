@@ -4,10 +4,10 @@
 
 ## 范围与入口
 
-- G2：`GET /api/v1/events` 返回 `EventListItem[]`，保留 `EventInfo` 原字段，增加对象、评委、任务及终态任务计数。单条 SQL、无行锁、按 owner 过滤后分页，各表独立计数避免重复。其他活动响应继续使用 `EventInfo`，避免写入审计时混入汇总字段。入口：[服务](../backend/src/score_api/events/service.py)、[模型](../backend/src/score_api/events/schemas.py)。
-- G3：新增 `GET /api/v1/events/{id}/publish-check`，返回是否可发布、问题列表、名单数、待补码数和实际有效份数门槛。使用现有一致性读事务，不生成凭证、不改变状态或审计。入口：[发布服务](../backend/src/score_api/events/publication.py)、[响应模型](../backend/src/score_api/events/publication_schemas.py)、[路由](../backend/src/score_api/events/router.py)。
-- 预检和发布准备前、发布锁内均复用 `inspect_publication`；`PUBLISH_INVALID` 的 422 响应增加 `error.issues`。评分核心异常补充稳定 code/field 元数据，保留 ValueError 兼容性和原有算法，不通过解析英文异常消息判断问题。入口：[评分核心](../backend/src/score_api/scoring.py)、[错误包装](../backend/src/score_api/core/errors.py)。
-- 已重新生成前端 [OpenAPI](../frontend/src/api/openapi.json) 和 [TypeScript 类型](../frontend/src/api/schema.d.ts)，并同步 [接口文档](api.md)、[前端计划](frontend-plan.md)、[提交计划](commit-plan.md)。
+- G2：`GET /api/v1/events` 返回 `EventListItem[]`，保留 `EventInfo` 原字段，增加对象、评委、任务及终态任务计数。单条 SQL、无行锁、按 owner 过滤后分页，各表独立计数避免重复。其他活动响应继续使用 `EventInfo`，避免写入审计时混入汇总字段。入口：[服务](../../backend/src/score_api/events/service.py)、[模型](../../backend/src/score_api/events/schemas.py)。
+- G3：新增 `GET /api/v1/events/{id}/publish-check`，返回是否可发布、问题列表、名单数、待补码数和实际有效份数门槛。使用现有一致性读事务，不生成凭证、不改变状态或审计。入口：[发布服务](../../backend/src/score_api/events/publication.py)、[响应模型](../../backend/src/score_api/events/publication_schemas.py)、[路由](../../backend/src/score_api/events/router.py)。
+- 预检和发布准备前、发布锁内均复用 `inspect_publication`；`PUBLISH_INVALID` 的 422 响应增加 `error.issues`。评分核心异常补充稳定 code/field 元数据，保留 ValueError 兼容性和原有算法，不通过解析英文异常消息判断问题。入口：[评分核心](../../backend/src/score_api/scoring.py)、[错误包装](../../backend/src/score_api/core/errors.py)。
+- 已重新生成前端 [OpenAPI](../../frontend/src/api/openapi.json) 和 [TypeScript 类型](../../frontend/src/api/schema.d.ts)，并同步 [接口文档](../api.md)、[前端计划](../frontend-plan.md)、[提交计划](../commit-plan.md)。
 
 ## Review 重点
 
@@ -19,7 +19,7 @@
 
 ## 验证
 
-新增 [预检单元测试](../backend/tests/test_publish_check.py) 与 [MySQL 集成测试](../backend/tests/test_event_management_mysql.py)，共 19 项，覆盖阈值边界、字段定位/脱敏、空名单、owner 隔离、分页、单查询计数、所有任务状态、复制、预检无写入、发布二次校验回滚、并发一致性读与锁。
+新增 [预检单元测试](../../backend/tests/test_publish_check.py) 与 [MySQL 集成测试](../../backend/tests/test_event_management_mysql.py)，共 19 项，覆盖阈值边界、字段定位/脱敏、空名单、owner 隔离、分页、单查询计数、所有任务状态、复制、预检无写入、发布二次校验回滚、并发一致性读与锁。
 
 WSL/Linux，在仓库目录执行：
 

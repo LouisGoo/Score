@@ -7,9 +7,9 @@
 
 ## 文件入口与范围
 
-- [scoring.py](../backend/src/score_api/scoring.py)：规则配置、输入校验、个人百分制总分、最低份数、平均/去极值汇总、公布成绩排名。
-- [test_scoring.py](../backend/tests/test_scoring.py)：需求示例与数值/非法输入/稳定性回归测试。
-- [README](../README.md)、[提交计划](commit-plan.md)、[接口文档](api.md)：同步交付状态及调用入口。
+- [scoring.py](../../backend/src/score_api/scoring.py)：规则配置、输入校验、个人百分制总分、最低份数、平均/去极值汇总、公布成绩排名。
+- [test_scoring.py](../../backend/tests/test_scoring.py)：需求示例与数值/非法输入/稳定性回归测试。
+- [README](../../README.md)、[提交计划](../commit-plan.md)、[接口文档](../api.md)：同步交付状态及调用入口。
 
 ## 调用示例
 

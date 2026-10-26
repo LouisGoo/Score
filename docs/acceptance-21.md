@@ -1,6 +1,6 @@
 # 工作 21 验收证据索引
 
-基线：产品需求与架构设计 V1.1 的 AT-01～26、29。执行结果见 [Review 21](review-21.md)。
+基线：产品需求与架构设计 V1.1 的 AT-01～26、29。执行结果见 [Review 21](review/review-21.md)。
 
 证据层次：`backend/tests/` 中带 `_mysql` 的测试使用真实 MySQL 和应用 HTTP 处理链，实时测试另外使用 Redis，其中多进程测试启动两个 Uvicorn 进程。新增 `test_workflow_mysql.py` 使用 TestClient 驱动 API，未启动浏览器。`frontend/src/` 测试使用 jsdom/模拟 API 或 WebSocket，不等同于浏览器与真机测试。下表是功能覆盖索引，不代表正式部署容量和所有终端均已验收。
 
@@ -22,7 +22,7 @@
 | AT-12 | 新增 trimmed_mean 闭环第二对象；`test_results_mysql.py::test_no_result_pause_close_and_active_reopen` | 4/5 可收评不可公布，补评后公布；无结果终态另测 |
 | AT-13 | 新增 mean 闭环 4/5 收评；`test_results_mysql.py::test_five_judges_threshold_and_recomputation` | K=4，原因必填，按实交 4 份平均并可公布；API 的 valid_count/expected_count |
 | AT-14 | 新增闭环逐次公布前隔离；`test_snapshots_mysql.py::test_private_scores_and_role_versions`；`test_realtime_mysql.py::test_roles_versions_and_multiple_api_instances` | 大屏无原始分/回执，未公布不进入公共结果，实时角色隔离 |
-| AT-15 | 新增闭环三类 CSV 与冻结快照 ID/数值/规则版本；`test_exports_mysql.py`；[Review 20b](review-20b.md) | 本次 API CSV 检查；既有 Chrome 六类下载实测记录单独引用 |
+| AT-15 | 新增闭环三类 CSV 与冻结快照 ID/数值/规则版本；`test_exports_mysql.py`；[Review 20b](review/review-20b.md) | 本次 API CSV 检查；既有 Chrome 六类下载实测记录单独引用 |
 | AT-16 | 新增闭环 1、2、2；`test_snapshots_mysql.py::test_tied_rankings_only_published_and_limit`；`test_scoring.py::test_at16_published_scores_competition_rank_and_display_order` | 四对象例子 1、2、2、4，且只包含已公布 |
 | AT-17 | 新增闭环每个对象公布后拒绝改分/重开 | 归档后历史快照不变，已成功请求仍可查原回执 |
 | AT-18 | `test_realtime_mysql.py::test_two_os_api_processes_receive_duplicates_without_cross_event` | 真实两个 API 进程、活动隔离；正式部署拓扑和容量留 23 |

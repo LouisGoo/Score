@@ -4,7 +4,7 @@
 
 ## 交付范围
 
-- `ballots/router.py`、`schemas.py`、`service.py`：PUT 本人评分（首次/改分）、GET 本人当前评分及按 Idempotency-Key 查询历史成功回执。所有成功请求返回 200；HTTP 模型、权限、错误与重试契约见 [API 文档](api.md)。
+- `ballots/router.py`、`schemas.py`、`service.py`：PUT 本人评分（首次/改分）、GET 本人当前评分及按 Idempotency-Key 查询历史成功回执。所有成功请求返回 200；HTTP 模型、权限、错误与重试契约见 [API 文档](../api.md)。
 - `ballots/models.py` 与 `0010_ballots`：逻辑评分单、追加历史版本、永久幂等响应、评委评分审计；复合外键约束活动/任务/应交资格，一任务一评委最多一张逻辑评分单。
 - `outbox/models.py`：同事务保存内部评分事件和按逻辑评分单计算的已交数，有待投递索引。投递和角色独立版本流属于 18；本批不引入 Redis 依赖。
 - 共享测试夹具移入 conftest，保留已有 08/09 测试内容和运行方式。
