@@ -6,7 +6,7 @@ import { judgeScoring } from '../api/judge'
 import type { BallotReceipt, PublicRound } from '../api/types'
 import { formatCountdown, pausedRemainingMs, remainingMs } from '../lib/clock'
 import { clearDraft, loadDraft, saveDraft, type DraftScores } from '../lib/drafts'
-import { DECIMAL_PATTERN, personalTotal, scoreError } from '../lib/decimal'
+import { DECIMAL_PATTERN, partialTotal, personalTotal, scoreError } from '../lib/decimal'
 import { newIdempotencyKey } from '../lib/ids'
 import { useNow } from '../lib/useNow'
 import { receiptsFor, type MobileSnapshot } from './data'
@@ -44,6 +44,8 @@ export function ScoreCard({ snapshot, round, synced, refresh, onExpired }: Props
   const canSubmit = synced && navigator.onLine && snapshot.event.status === 'RUNNING' && round.status === 'OPEN'
     && remaining !== 0 && (!receipt || snapshot.allow_revisions)
   const total = personalTotal(snapshot.rule.criteria, scores)
+  const partial = partialTotal(snapshot.rule.criteria, scores)
+  const invalidCount = Object.keys(partial.errors).length
   const confirmationValid = !!confirmation && confirmation.revision === (receipt?.revision ?? 0) && confirmation.roundVersion === round.version
   const waiting = busy || now < retryAt
 
@@ -222,16 +224,21 @@ export function ScoreCard({ snapshot, round, synced, refresh, onExpired }: Props
           </div>
         })}
         <div className="judge-submit-bar">
-          <div className="judge-total">个人总分预览 <strong>{total ?? '待填写'}</strong></div>
+          <div role="status" aria-live="polite" aria-atomic="true">
+            <div className="judge-total">{partial.complete ? '个人总分预览' : invalidCount ? '有效项合计' : '已填项合计'} <strong>{partial.total}</strong></div>
+            <p className="judge-muted">{invalidCount
+              ? `有效 ${partial.validCount}/${partial.totalCount} 项，${invalidCount} 项需修正`
+              : `已填 ${partial.validCount}/${partial.totalCount} 项`}</p>
+          </div>
           <p className="judge-muted">仅供预览，保存结果以服务端回执为准。</p>
-          <Button type="primary" htmlType="submit" block loading={busy} disabled={!canSubmit || waiting}>核对并提交</Button>
+          <Button type="primary" htmlType="submit" block loading={busy} disabled={!canSubmit || waiting || total === null}>核对并提交</Button>
           {editing && <Button block disabled={busy} onClick={() => { setEditing(false); setConfirmation(null) }}>返回已保存评分</Button>}
         </div>
       </form>}
     </>}
     <Modal title="确认本次评分" open={!!confirmation} onCancel={() => setConfirmation(null)} onOk={confirm}
       okText="确认提交" cancelText="返回修改" width={480} className="judge-confirm"
-      okButtonProps={{ disabled: !canSubmit || !confirmationValid || waiting }}>
+      okButtonProps={{ disabled: !canSubmit || !confirmationValid || waiting || total === null }}>
       <h3>{round.number} · {round.name}</h3>
       <ScoreSummary scores={snapshot.rule.criteria.map(c => ({ criterion_id: c.criterion_id, value: scores[c.criterion_id] ?? '' }))} rule={snapshot.rule} />
       <p>个人总分预览：<strong>{total}</strong></p>

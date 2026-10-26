@@ -39,6 +39,39 @@ export function formatScore(value: string): string {
 export function personalTotal(criteria: CriterionRule[], scores: Record<string, string>): string | null {
   if (criteria.length === 0) return null
   if (criteria.some(c => scoreError(scores[c.criterion_id] ?? '', c) !== null)) return null
+  return weightedTotal(criteria, scores)
+}
+
+export interface PartialTotalPreview {
+  total: string
+  validCount: number
+  totalCount: number
+  errors: Record<string, string>
+  complete: boolean
+}
+
+/** 仅累计合法已填项的原权重贡献；空白不补零，错误项不保留旧贡献。 */
+export function partialTotal(criteria: CriterionRule[], scores: Record<string, string>): PartialTotalPreview {
+  const valid: CriterionRule[] = []
+  const errors: Record<string, string> = {}
+  for (const criterion of criteria) {
+    const value = scores[criterion.criterion_id] ?? ''
+    if (value.trim() === '') continue
+    const error = scoreError(value, criterion)
+    if (error) errors[criterion.criterion_id] = error
+    else valid.push(criterion)
+  }
+  return {
+    total: weightedTotal(valid, scores),
+    validCount: valid.length,
+    totalCount: criteria.length,
+    errors,
+    complete: criteria.length > 0 && valid.length === criteria.length,
+  }
+}
+
+/** 合法项先通分精确累加，再统一除法和舍入；空集合的合计为 0.00。 */
+function weightedTotal(criteria: CriterionRule[], scores: Record<string, string>): string {
   const maxima = criteria.map(c => new Exact(c.maximum))
   const denominator = maxima.reduce((product, m) => product.times(m), new Exact(1))
   const numerator = criteria.reduce((sum, c, i) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { personalTotal, scoreError, type CriterionRule } from './decimal'
+import { partialTotal, personalTotal, scoreError, type CriterionRule } from './decimal'
 
 const c = (criterion_id: string, maximum: string, weight: string, step: string): CriterionRule => ({
   criterion_id,
@@ -19,6 +19,7 @@ describe('personalTotal', () => {
     [[c('a', '100', '1', '0.1')], { a: '0' }, '0.00'],
   ])('matches backend for %j %j', (criteria, scores, expected) => {
     expect(personalTotal(criteria, scores)).toBe(expected)
+    expect(partialTotal(criteria, scores)).toMatchObject({ total: expected, complete: true, errors: {} })
   })
 
   it('accepts equivalent decimal text and surrounding whitespace', () => {
@@ -31,6 +32,44 @@ describe('personalTotal', () => {
     expect(personalTotal(rule, { a: '5', b: '' })).toBeNull()
     expect(personalTotal(rule, { a: '5', b: '11' })).toBeNull()
     expect(personalTotal([], {})).toBeNull()
+  })
+})
+
+describe('partialTotal', () => {
+  const rule = [c('a', '30', '0.3', '0.1'), c('b', '30', '0.3', '0.1'), c('c', '20', '0.2', '0.1'), c('d', '20', '0.2', '0.1')]
+
+  it('accumulates each item and recalculates edits and deletions', () => {
+    const scores: Record<string, string> = {}
+    expect(partialTotal(rule, scores)).toEqual({ total: '0.00', validCount: 0, totalCount: 4, errors: {}, complete: false })
+    for (const [id, value, expected, count] of [
+      ['a', '27', '27.00', 1], ['b', '28', '55.00', 2], ['c', '18', '73.00', 3],
+      ['d', '19', '92.00', 4], ['a', '29', '94.00', 4], ['d', '', '75.00', 3],
+    ] as const) {
+      scores[id] = value
+      expect(partialTotal(rule, scores)).toMatchObject({ total: expected, validCount: count, complete: count === 4 })
+    }
+    expect(scores.d).toBe('')
+    expect(personalTotal(rule, scores)).toBeNull()
+  })
+
+  it('keeps original weights, counts zero, ignores blank and unrelated values without changing the draft', () => {
+    const criteria = [c('a', '100', '0.3', '1'), c('b', '10', '0.3', '1'), c('c', '20', '0.4', '1')]
+    const scores = Object.freeze({ a: ' 80 ', b: '0', c: '  ', unknown: '99' })
+    expect(partialTotal(criteria, scores)).toEqual({ total: '24.00', validCount: 2, totalCount: 3, errors: {}, complete: false })
+    expect(partialTotal([], {})).toEqual({ total: '0.00', validCount: 0, totalCount: 0, errors: {}, complete: false })
+    expect(partialTotal([c('a', '100', '1', '1')], { a: '0' })).toMatchObject({ total: '0.00', validCount: 1, complete: true })
+  })
+
+  it.each(['-1', '1e2', '1.', '.5', 'NaN', 'Infinity', '1.1234567', '1234567890', '31', '1.05'])('excludes invalid input %s and reports the error', value => {
+    const result = partialTotal(rule, { a: value, b: '28' })
+    expect(result).toMatchObject({ total: '28.00', validCount: 1, complete: false })
+    expect(result.errors).toEqual({ a: scoreError(value, rule[0]) })
+  })
+
+  it('rounds only after summing exact contributions, including half-up boundaries', () => {
+    const criteria = [c('a', '3', '0.3', '0.0001'), c('b', '7', '0.7', '0.0001'), c('c', '100', '0', '1')]
+    expect(partialTotal(criteria, { a: '0.0004', b: '0.0004' }).total).toBe('0.01')
+    expect(partialTotal(criteria, { a: '0.0002', b: '0.0003' }).total).toBe('0.01')
   })
 })
 
