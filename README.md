@@ -97,6 +97,8 @@ API 文档：http://localhost:8000/docs 。本地服务默认仅监听本机，�
 
 ## 数据库与迁移
 
+`cbdev` 的身份码重复查看功能新增迁移 **0025_recoverable_credentials**。使用前在 `backend` 执行 `../.venv/bin/alembic upgrade head`，再重启 API/worker。迁移只添加可空的加密副本字段，保留原身份码哈希和既有数据。新设置、重置及发布时生成的身份码可由活动拥有者反复查看；旧版本身份码不能从哈希还原，需重新设置或重置一次。`SCORE_CREDENTIAL_HMAC_KEY` 同时用于派生加密密钥，须稳定保存并独立备份。部署时先迁移数据库，再启动新版本。
+
 当前远端已于 2026-10-13 升级至 **0013_snapshots**，Alembic check 与 ready=200 核验通过，既有数据保留，凭证 HMAC 密钥已配置。11～13 最终完整后端 **312 passed**，前端构建通过，远端 worker 单批检查通过。下文较早批次的远端说明为历史记录；最新证据见 [Review 13](docs/review/review-13.md)。
 
 本地开发可在仓库根目录执行：

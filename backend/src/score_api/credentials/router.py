@@ -15,6 +15,25 @@ router = APIRouter(
 )
 
 
+@router.get("/{event_id}/judges/{judge_id}/credential", response_model=CredentialResult)
+def get_credential(
+    event_id: str,
+    judge_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(require_admin)],
+):
+    """活动拥有者查看当前身份码；不改变身份码版本或评委会话。"""
+    return service.get_credential(
+        database_for(request),
+        request.app.state.settings,
+        principal.admin.id,
+        event_id,
+        judge_id,
+        request.state.request_id,
+        request.app.state.clock,
+    )
+
+
 @router.post("/{event_id}/judges/{judge_id}/reset-credential", response_model=CredentialResult)
 def reset_credential(
     event_id: str,

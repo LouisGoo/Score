@@ -4,7 +4,11 @@ from sqlalchemy import select, update
 
 from score_api.core.errors import APIError
 from score_api.credentials.schemas import CredentialResult
-from score_api.credentials.security import prepare_credential
+from score_api.credentials.security import (
+    decrypt_credential,
+    encrypt_credential,
+    prepare_credential,
+)
 from score_api.events.models import EventJudge
 from score_api.events.service import audit, get_member, owned_event
 from score_api.judge_sessions.models import JudgeConfirmation, JudgeSession
@@ -21,12 +25,17 @@ def credential_metadata(judge):
     }
 
 
-def apply_credential(session, event, judge, prepared, owner_id, request_id, now, *, reason=None):
+def apply_credential(
+    session, settings, event, judge, prepared, owner_id, request_id, now, *, reason=None
+):
     before = credential_metadata(judge)
     judge.credential_hash = prepared.encoded
     judge.credential_lookup = prepared.lookup
     judge.credential_source = prepared.source
     judge.credential_version += 1
+    judge.credential_ciphertext = encrypt_credential(
+        settings, event.id, judge.id, judge.credential_version, prepared.code
+    )
     judge.credential_updated_at = now
     event.updated_at = now
     session.flush()
@@ -49,6 +58,40 @@ def apply_credential(session, event, judge, prepared, owner_id, request_id, now,
         credential_version=judge.credential_version,
         credential_updated_at=now,
     )
+
+
+def get_credential(database, settings, owner_id, event_id, judge_id, request_id, clock):
+    with database.transaction() as session:
+        event = owned_event(session, owner_id, event_id)
+        judge = get_member(session, EventJudge, event_id, judge_id)
+        if not judge.credential_is_set:
+            raise APIError(404, "CREDENTIAL_NOT_SET", "该评委尚未设置身份码")
+        if judge.credential_ciphertext is None:
+            raise APIError(
+                409, "CREDENTIAL_NOT_RECORDED", "该身份码由旧版本生成，需重新设置或重置后才能查看"
+            )
+        code = decrypt_credential(
+            settings, event_id, judge_id, judge.credential_version, judge.credential_ciphertext
+        )
+        audit(
+            session,
+            event,
+            owner_id,
+            "credential.viewed",
+            judge_id,
+            None,
+            credential_metadata(judge),
+            request_id,
+            clock(),
+        )
+        return CredentialResult(
+            event_id=event_id,
+            judge_id=judge_id,
+            code=code,
+            credential_source=judge.credential_source,
+            credential_version=judge.credential_version,
+            credential_updated_at=judge.credential_updated_at,
+        )
 
 
 def set_credential(database, settings, owner_id, event_id, judge_id, body, request_id, clock):
@@ -76,7 +119,7 @@ def set_credential(database, settings, owner_id, event_id, judge_id, body, reque
                     raise APIError(409, "CREDENTIAL_CONFLICT", "该身份码已被本活动使用")
                 continue
             result = apply_credential(
-                session, event, judge, prepared, owner_id, request_id, clock()
+                session, settings, event, judge, prepared, owner_id, request_id, clock()
             )
         return result
     raise APIError(503, "CREDENTIAL_GENERATION_BUSY", "身份码生成失败，请重试", retry_after=1)
@@ -119,7 +162,15 @@ def reset_credential(database, settings, owner_id, event_id, judge_id, body, req
                 continue
             now = clock()
             result = apply_credential(
-                session, event, judge, prepared, owner_id, request_id, now, reason=body.reason
+                session,
+                settings,
+                event,
+                judge,
+                prepared,
+                owner_id,
+                request_id,
+                now,
+                reason=body.reason,
             )
             session.execute(
                 update(JudgeSession)

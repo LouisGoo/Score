@@ -2,7 +2,16 @@
 
 from datetime import datetime
 
-from sqlalchemy import BINARY, JSON, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import (
+    BINARY,
+    JSON,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from score_api.db import Base, UTCDateTime
@@ -84,6 +93,7 @@ class EventJudge(Base):
     number: Mapped[str] = mapped_column(String(32, collation="utf8mb4_bin"))
     name: Mapped[str] = mapped_column(String(80))
     credential_hash: Mapped[str | None] = mapped_column(String(256))
+    credential_ciphertext: Mapped[bytes | None] = mapped_column(LargeBinary())
     credential_lookup: Mapped[bytes | None] = mapped_column(BINARY(32))
     credential_source: Mapped[str | None] = mapped_column(String(16))
     credential_version: Mapped[int] = mapped_column(default=0, server_default="0")

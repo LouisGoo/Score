@@ -23,7 +23,7 @@ mkdir -p infra/tls/web infra/tls/mysql
 
 - `PUBLIC_BASE_URL`：真实 HTTPS origin，无路径、尾斜线、查询或 fragment，例如 `https://score.example.org`。Compose 用它生成唯一可信 Origin，并作为前端构建参数生成二维码/邀请链接。更换域名后需重建 web 镜像。
 - `DATABASE_URL`：真实 MySQL 地址，用户名密码特殊字符须 URL 编码。示例启用 CA 和服务器身份验证；将提供方 CA 放到 `infra/tls/mysql/mysql-ca.pem`。不要用关闭证书验证的方式处理连接失败。
-- `SCORE_CREDENTIAL_HMAC_KEY`：用 `python -c 'import secrets; print(secrets.token_hex(32))'` 生成并安全保存。更换会影响既有身份码验证；所有 API/worker 使用同一值。
+- `SCORE_CREDENTIAL_HMAC_KEY`：用 `python -c 'import secrets; print(secrets.token_hex(32))'` 生成并安全保存。更换会影响既有身份码验证和加密副本的读取；所有 API/worker 使用同一值。
 
 将站点证书链与私钥分别放到 `infra/tls/web/fullchain.pem`、`privkey.pem`。API 只挂载 MySQL CA 目录，不接触站点私钥。真实配置和证书已从 Git 与 Docker 构建上下文排除。后端生产启动会拒绝 HTTP、关闭安全 Cookie、来源不一致或缺少必要配置。
 

@@ -121,10 +121,13 @@ export const adminEvents = {
   removeJudge: (eventId: string, judgeId: string) =>
     adminApi.send<void>('DELETE', `${eventPath(eventId)}/judges/${id(judgeId)}`),
 
-  /** 草稿设置身份码；code 为 null 时自动生成。明文仅在本次响应中返回，调用方不得缓存。 */
+  /** 按需查看当前身份码；调用方只在弹窗状态中持有，不放入查询缓存。 */
+  credential: (eventId: string, judgeId: string) =>
+    adminApi.get<CredentialResult>(`${eventPath(eventId)}/judges/${id(judgeId)}/credential`),
+  /** 草稿设置身份码；code 为 null 时自动生成。 */
   setCredential: (eventId: string, judgeId: string, code: string | null) =>
     adminApi.send<CredentialResult>('PUT', `${eventPath(eventId)}/judges/${id(judgeId)}/credential`, { code }),
-  /** 发布后至结束前重置身份码，撤销旧会话；明文同样仅返回一次。 */
+  /** 发布后至结束前重置身份码并撤销旧会话，新码可再次查看。 */
   resetCredential: (eventId: string, judgeId: string, reason: string, code: string | null) =>
     adminApi.send<CredentialResult>('POST', `${eventPath(eventId)}/judges/${id(judgeId)}/reset-credential`, {
       reason,

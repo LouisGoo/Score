@@ -109,6 +109,11 @@ def test_preview_confirmation_cookie_me_and_logout(published, mobiles, clients, 
     assert token not in session.text and "FIRST123" not in session.text
     assert not session.json()["read_only"]
     assert first.get(BASE + "/me").json() == session.json()
+    credential_url = f"{published[1]}/judges/{published[2][0]['id']}/credential"
+    assert first.get(credential_url).status_code == 401
+    for _ in range(2):
+        assert owner.get(credential_url).json()["code"] == "FIRST123"
+        assert first.get(BASE + "/me").json() == session.json()
     assert owner.get(BASE + "/me").status_code == 401
     assert first.get("/api/v1/auth/me").status_code == 401
     assert first.get(published[1]).status_code == 401
@@ -174,6 +179,7 @@ def test_reset_rejects_current_duplicate_and_invalidates_old_code_sessions_confi
     )
     response = owner.post(url, json={"reason": "更换手机", "code": "NEWCODE123"})
     assert response.status_code == 200 and response.json()["credential_version"] == 2
+    assert owner.get(url.replace("/reset-credential", "/credential")).json() == response.json()
     assert first.get(BASE + "/me").status_code == 401
     assert confirm(second, pending).status_code == 401
     invalid = verify(second, published)
@@ -427,7 +433,15 @@ def test_waiting_exchange_rechecks_reset_and_logout_rechecks_session(
             )
             judge = sql.get(EventJudge, published[2][0]["id"])
             credentials.apply_credential(
-                sql, event, judge, prepared, owners[0], uuid4().hex, utc_now(), reason="测试锁竞争"
+                sql,
+                owner.app.state.settings,
+                event,
+                judge,
+                prepared,
+                owners[0],
+                uuid4().hex,
+                utc_now(),
+                reason="测试锁竞争",
             )
             sa_event.listen(db.engine, "before_cursor_execute", before_execute)
             future = pool.submit(exchange)

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, App, Button, Flex, Modal, QRCode, Table, Typography } from 'antd'
+import { Alert, Button, Flex, Modal, QRCode, Table, Typography } from 'antd'
 import type { CredentialResult } from '../../api/types'
 import { privateInviteUrl } from '../format'
 
@@ -18,22 +18,11 @@ interface Props {
 }
 
 /**
- * 身份码明文只在本对话框中展示：数据来自本次写操作响应，不进入查询缓存，关闭即丢弃。
- * 关闭前需确认，避免误关后无法找回（只能再次重置）。
+ * 身份码按需获取后仅保存在对话框状态中，关闭即丢弃；下次查看重新向服务端请求。
  */
 export function CredentialDialog({ title, items, publicCode, onClose }: Props) {
-  const { modal } = App.useApp()
   const [qrFor, setQrFor] = useState<string | null>(items.length === 1 ? items[0].result.judge_id : null)
   const shown = items.find(i => i.result.judge_id === qrFor)
-
-  const confirmClose = () =>
-    modal.confirm({
-      title: '确认已记录身份码？',
-      content: '关闭后无法再次查看明文；遗失只能重置身份码。',
-      okText: '已记录，关闭',
-      cancelText: '返回',
-      onOk: onClose,
-    })
 
   const allText = items
     .map(i => [i.number, i.name, i.result.code, publicCode ? privateInviteUrl(publicCode, i.result.code) : ''].filter(Boolean).join('\t'))
@@ -46,18 +35,18 @@ export function CredentialDialog({ title, items, publicCode, onClose }: Props) {
       width={items.length > 1 ? 820 : 560}
       mask={{ closable: false }}
       keyboard={false}
-      onCancel={confirmClose}
-      footer={<Button type="primary" onClick={confirmClose}>完成</Button>}
+      onCancel={onClose}
+      footer={<Button type="primary" onClick={onClose}>完成</Button>}
     >
       <Alert
         type="warning"
         showIcon
         className="form-alert"
-        title="明文仅显示这一次"
+        title="身份码可再次查看"
         description={
           publicCode
-            ? '请私下分发给对应评委。私人邀请二维码含身份码，请勿投屏或公开张贴。'
-            : '活动尚未发布、没有活动码，暂不能生成私人邀请二维码；请先复制保存身份码，发布后评委通过公共入口输入。'
+            ? '关闭后可在“评委与身份码”中再次查看和复制。请私下分发给对应评委，私人邀请二维码请勿投屏或公开张贴。'
+            : '关闭后可在“评委与身份码”中再次查看和复制。活动发布后，再次查看即可获取私人邀请二维码。'
         }
       />
       <Table<IssuedCredential>

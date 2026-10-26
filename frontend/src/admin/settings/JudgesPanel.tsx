@@ -38,6 +38,7 @@ export function JudgesPanel({ event, editable }: { event: EventInfo; editable: b
   const [editing, setEditing] = useState<JudgeInfo | 'new' | null>(null)
   const [credentialFor, setCredentialFor] = useState<JudgeInfo | null>(null)
   const [issued, setIssued] = useState<IssuedCredential[] | null>(null)
+  const [issuedTitle, setIssuedTitle] = useState('身份码')
   const [judgeForm] = Form.useForm<JudgeValues>()
   const [credentialForm] = Form.useForm<CredentialValues>()
   const list = judges.data ?? []
@@ -87,6 +88,7 @@ export function JudgesPanel({ event, editable }: { event: EventInfo; editable: b
     onSuccess: (result, { judge }) => {
       setCredentialFor(null)
       credentialForm.resetFields()
+      setIssuedTitle(resettable ? '新的身份码' : '身份码已设置')
       setIssued([{ result, number: judge.number, name: judge.name }])
       credential.reset()
       void refresh()
@@ -98,16 +100,30 @@ export function JudgesPanel({ event, editable }: { event: EventInfo; editable: b
       } else if (info.code === 'CREDENTIAL_UNCHANGED') {
         credentialForm.setFields([{ name: 'code', errors: ['新身份码不能与当前身份码相同'] }])
       } else if (info.action !== 'fix') {
-        // 无幂等键：结果未知时不重发；若已生效，明文无法找回，只能再次设置或重置。
+        // 无幂等键：结果未知时先核对版本，再按需查看当前身份码。
         setCredentialFor(null)
         void refresh()
         if (info.action === 'verify') {
           modal.warning({
             title: '身份码操作结果未知',
-            content: '请查看该评委的凭证版本与更新时间。若已更新，明文无法找回，需要再次设置或重置后分发。',
+            content: '请核对该评委的凭证版本与更新时间，再点击“查看身份码”获取当前码并分发。',
           })
         }
       }
+    },
+  })
+
+  const viewCredential = useMutation({
+    gcTime: 0,
+    mutationFn: (judge: JudgeInfo) => adminEvents.credential(eventId, judge.id),
+    onSuccess: (result, judge) => {
+      setIssuedTitle('查看身份码')
+      setIssued([{ result, number: judge.number, name: judge.name }])
+      viewCredential.reset()
+    },
+    onError: error => {
+      report(error, '查看失败')
+      void refresh()
     },
   })
 
@@ -133,8 +149,8 @@ export function JudgesPanel({ event, editable }: { event: EventInfo; editable: b
       <Flex justify="space-between" align="center" wrap gap={12} className="panel-toolbar">
         <Typography.Text type="secondary">
           共 {list.length} 位评委
-          {event.status === 'DRAFT' && missing > 0 && `，${missing} 位未设置身份码（发布时自动生成并仅显示一次）`}
-          。身份码明文不保存在页面中，只在设置、生成或重置时显示一次。
+          {event.status === 'DRAFT' && missing > 0 && `，${missing} 位未设置身份码（发布时自动生成）`}
+          。主办方可随时点击“查看身份码”再次查看和复制，请仅私下分发给对应评委。
         </Typography.Text>
         {editable && <Button type="primary" icon={<PlusOutlined />} onClick={() => openJudge('new')}>添加评委</Button>}
       </Flex>
@@ -167,6 +183,17 @@ export function JudgesPanel({ event, editable }: { event: EventInfo; editable: b
             width: 220,
             render: (_, judge) => (
               <Space size={0} wrap>
+                {judge.credential_is_set && (
+                  <Button
+                    size="small"
+                    type="link"
+                    loading={viewCredential.isPending && viewCredential.variables?.id === judge.id}
+                    disabled={viewCredential.isPending}
+                    onClick={() => viewCredential.mutate(judge)}
+                  >
+                    查看身份码
+                  </Button>
+                )}
                 {editable && (
                   <>
                     <Button size="small" type="link" onClick={() => openCredential(judge)}>
@@ -281,7 +308,7 @@ export function JudgesPanel({ event, editable }: { event: EventInfo; editable: b
 
       {issued && (
         <CredentialDialog
-          title={resettable ? '新的身份码' : '身份码已设置'}
+          title={issuedTitle}
           items={issued}
           publicCode={event.public_code}
           onClose={() => setIssued(null)}

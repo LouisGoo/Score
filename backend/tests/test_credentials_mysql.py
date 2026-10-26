@@ -1,11 +1,14 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from threading import Barrier
 from uuid import uuid4
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import event as sa_event
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from score_api.core.errors import APIError
@@ -55,6 +58,94 @@ def test_manual_auto_metadata_no_plaintext_or_hash_leaks(clients, event_db, capl
     assert response.json()["credential_version"] == 2
     assert response.json()["credential_source"] == "generated"
     assert "code" not in owner.get(url + "/judges").json()[0]
+
+
+def test_owner_can_repeatedly_view_current_code_without_changing_it(clients, event_db, caplog):
+    owner, other = clients
+    db, _ = event_db
+    event, url, judges = draft(owner)
+    target = f"{url}/judges/{judges[0]['id']}"
+    path = target + "/credential"
+    assert owner.get(path).json()["error"]["code"] == "CREDENTIAL_NOT_SET"
+    issued = owner.put(path, json={"code": "ABCD1234"}).json()
+    before = owner.get(url).json()
+    for _ in range(2):
+        response = owner.get(path)
+        assert response.status_code == 200
+        assert response.json() == issued
+        assert response.headers["cache-control"] == "no-store"
+    assert owner.get(url).json() == before
+    assert other.get(path).status_code == 404
+    _, other_url, _ = draft(owner)
+    assert owner.get(f"{other_url}/judges/{judges[0]['id']}/credential").status_code == 404
+    with db.transaction() as session:
+        row = session.get(EventJudge, judges[0]["id"])
+        assert b"ABCD1234" not in row.credential_ciphertext
+        audits = list(session.scalars(select(EventAudit).where(EventAudit.event_id == event["id"])))
+        assert len([a for a in audits if a.action == "credential.viewed"]) == 2
+        visible = json.dumps([a.after for a in audits]) + caplog.text
+        assert "ABCD1234" not in visible and row.credential_ciphertext.hex() not in visible
+    info = owner.get(target).json()
+    assert "code" not in info and "credential_ciphertext" not in info
+    new_code = owner.put(path, json={}).json()
+    assert owner.get(path).json() == new_code
+    for status in ("READY", "RUNNING", "FINISHED", "ARCHIVED"):
+        with db.transaction() as session:
+            session.get(Event, event["id"]).status = status
+        assert owner.get(path).json() == new_code
+    owner.cookies.clear()
+    assert owner.get(path).status_code == 401
+
+
+def test_view_handles_legacy_missing_key_and_damaged_ciphertext(clients, event_db):
+    owner, other = clients
+    db, _ = event_db
+    _, url, judges = draft(owner)
+    path = f"{url}/judges/{judges[0]['id']}/credential"
+    owner.put(path, json={"code": "ABCD1234"})
+    with db.transaction() as session:
+        row = session.get(EventJudge, judges[0]["id"])
+        ciphertext = row.credential_ciphertext
+        row.credential_ciphertext = None
+    response = owner.get(path)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "CREDENTIAL_NOT_RECORDED"
+    assert other.get(path).status_code == 404
+    with db.transaction() as session:
+        session.get(EventJudge, judges[0]["id"]).credential_ciphertext = ciphertext[:-1]
+    assert owner.get(path).json()["error"]["code"] == "CREDENTIAL_UNREADABLE"
+    with db.transaction() as session:
+        session.get(EventJudge, judges[0]["id"]).credential_ciphertext = ciphertext
+    owner.app.state.settings.credential_hmac_key = None
+    assert owner.get(path).json()["error"]["code"] == "CREDENTIAL_KEY_UNAVAILABLE"
+    assert other.get(path).status_code == 404
+
+
+def test_credential_migration_preserves_legacy_hashes(clients, event_db):
+    owner, _ = clients
+    db, _ = event_db
+    _, url, judges = draft(owner)
+    path = f"{url}/judges/{judges[0]['id']}/credential"
+    owner.put(path, json={"code": "ABCD1234"})
+    query = text(
+        "SELECT credential_hash, credential_lookup, credential_version "
+        "FROM score_event_judges WHERE id = :id"
+    )
+    with db.engine.connect() as connection:
+        before = connection.execute(query, {"id": judges[0]["id"]}).one()
+    config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    try:
+        command.downgrade(config, "0018_realtime")
+        with db.engine.connect() as connection:
+            assert connection.execute(query, {"id": judges[0]["id"]}).one() == before
+    finally:
+        command.upgrade(config, "head")
+    with db.engine.connect() as connection:
+        assert connection.execute(query, {"id": judges[0]["id"]}).one() == before
+    assert owner.get(path).json()["error"]["code"] == "CREDENTIAL_NOT_RECORDED"
+    # 保存旧码也能为草稿补齐加密副本，不需要还原哈希。
+    owner.put(path, json={"code": "ABCD1234"})
+    assert owner.get(path).json()["code"] == "ABCD1234"
 
 
 def test_uniqueness_permissions_states_and_validation(clients, event_db):

@@ -2535,13 +2535,123 @@
         }
       }
     },
-    "/api/v1/events/{event_id}/judges/{judge_id}/reset-credential": {
-      "post": {
+    "/api/v1/events/{event_id}/judges/{judge_id}/credential": {
+      "get": {
         "tags": [
           "credentials"
         ],
-        "summary": "Reset Credential",
-        "operationId": "reset_credential_api_v1_events__event_id__judges__judge_id__reset_credential_post",
+        "summary": "Get Credential",
+        "description": "活动拥有者查看当前身份码；不改变身份码版本或评委会话。",
+        "operationId": "get_credential_api_v1_events__event_id__judges__judge_id__credential_get",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "judge_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Judge Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Set Credential",
+        "operationId": "set_credential_api_v1_events__event_id__judges__judge_id__credential_put",
         "parameters": [
           {
             "name": "event_id",
@@ -2567,7 +2677,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResetCredentialInput"
+                "$ref": "#/components/schemas/CredentialInput"
               }
             }
           }
@@ -2656,13 +2766,13 @@
         }
       }
     },
-    "/api/v1/events/{event_id}/judges/{judge_id}/credential": {
-      "put": {
+    "/api/v1/events/{event_id}/judges/{judge_id}/reset-credential": {
+      "post": {
         "tags": [
           "credentials"
         ],
-        "summary": "Set Credential",
-        "operationId": "set_credential_api_v1_events__event_id__judges__judge_id__credential_put",
+        "summary": "Reset Credential",
+        "operationId": "reset_credential_api_v1_events__event_id__judges__judge_id__reset_credential_post",
         "parameters": [
           {
             "name": "event_id",
@@ -2688,7 +2798,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CredentialInput"
+                "$ref": "#/components/schemas/ResetCredentialInput"
               }
             }
           }

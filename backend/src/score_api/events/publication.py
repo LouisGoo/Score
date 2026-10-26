@@ -193,7 +193,9 @@ def publish_event(database, settings, owner_id, event_id, request_id, clock):
             if candidate is None or candidate.lookup in occupied:
                 raise APIError(409, "PUBLISH_CONFLICT", "发布准备期间名单或凭证已变化，请重新发布")
             generated.append(
-                apply_credential(session, event, judge, candidate, owner_id, request_id, now)
+                apply_credential(
+                    session, settings, event, judge, candidate, owner_id, request_id, now
+                )
             )
             occupied.add(candidate.lookup)
         snapshot = EventSnapshot(

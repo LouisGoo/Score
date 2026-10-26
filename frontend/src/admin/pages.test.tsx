@@ -251,7 +251,7 @@ describe('publish check and publish', () => {
     expect(await screen.findByText('还没有参评对象，发布前至少需要一个')).toBeInTheDocument()
   })
 
-  it('shows generated credentials once after publishing and keeps them out of caches', async () => {
+  it('shows generated credentials after publishing and keeps them out of caches', async () => {
     const calls = mockApi({
       'GET /auth/me': { body: session },
       'GET /events/e1': [{ body: draft }, { body: published }],
@@ -275,7 +275,6 @@ describe('publish check and publish', () => {
     expect(cachesContain(queryClient, 'K7M2P9Q4R8T3')).toBe(false)
 
     await user.click(within(dialog).getByRole('button', { name: '完成' }))
-    await user.click(await screen.findByRole('button', { name: '已记录，关闭' }))
     await waitFor(() => expect(screen.queryByText('K7M2P9Q4R8T3')).not.toBeInTheDocument())
     expect(await screen.findByText('活动已发布，名单、评分规则与过程规则已冻结')).toBeInTheDocument()
     expect(screen.getByText('ABCDEFGH2345')).toBeInTheDocument()
@@ -334,10 +333,54 @@ describe('judge credentials', () => {
 
     const dialog = await dialogTitled('身份码已设置')
     expect(within(dialog).getAllByText('H3J4K5L6M7N8').length).toBeGreaterThan(0)
-    expect(within(dialog).getByText(/暂不能生成私人邀请二维码/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/活动发布后，再次查看即可获取私人邀请二维码/)).toBeInTheDocument()
     expect(writes(calls)[0].body).toEqual({ code: null })
     expect(cachesContain(queryClient, 'H3J4K5L6M7N8')).toBe(false)
     expect(await screen.findByText('已设置')).toBeInTheDocument()
+  })
+
+  it.each(['DRAFT', 'READY', 'FINISHED', 'ARCHIVED'] as const)('reopens the current credential in %s without writing or caching plaintext', async status => {
+    const event = status === 'DRAFT' ? draft : { ...published, status }
+    const calls = mockApi({
+      'GET /auth/me': { body: session },
+      'GET /events/e1': { body: event },
+      'GET /events/e1/publication': { body: { event, snapshot: {}, rounds: [] } },
+      'GET /events/e1/judges': { body: [{ ...judge, credential_is_set: true, credential_source: 'manual', credential_version: 1 }] },
+      'GET /events/e1/judges/j1/credential': [
+        { body: credential('FIRST123') },
+        { body: { ...credential('SECOND123'), credential_version: 2 } },
+      ],
+    })
+    const user = userEvent.setup()
+    const { queryClient } = renderRoute('/admin/events/e1/settings?tab=judges')
+    for (const code of ['FIRST123', 'SECOND123']) {
+      await user.click(await screen.findByRole('button', { name: '查看身份码' }))
+      const dialog = await dialogTitled('查看身份码')
+      expect(within(dialog).getByText(code)).toBeInTheDocument()
+      expect(within(dialog).getByText('身份码可再次查看')).toBeInTheDocument()
+      await waitFor(() => expect(cachesContain(queryClient, code)).toBe(false))
+      await user.click(within(dialog).getByRole('button', { name: '完成' }))
+      await waitFor(() => expect(screen.queryByText(code)).not.toBeInTheDocument())
+      expect(screen.queryByText('确认已记录身份码？')).not.toBeInTheDocument()
+    }
+    expect(calls.filter(c => c.path.endsWith('/credential'))).toHaveLength(2)
+    expect(writes(calls)).toHaveLength(0)
+  })
+
+  it('explains legacy credentials without automatically resetting them', async () => {
+    const calls = mockApi({
+      'GET /auth/me': { body: session },
+      'GET /events/e1': { body: draft },
+      'GET /events/e1/judges': { body: [{ ...judge, credential_is_set: true }] },
+      'GET /events/e1/judges/j1/credential': apiError('CREDENTIAL_NOT_RECORDED', 409, {
+        message: '该身份码由旧版本生成，需重新设置或重置后才能查看',
+      }),
+    })
+    const user = userEvent.setup()
+    renderRoute('/admin/events/e1/settings?tab=judges')
+    await user.click(await screen.findByRole('button', { name: '查看身份码' }))
+    expect(await screen.findByText(/该身份码由旧版本生成/)).toBeInTheDocument()
+    expect(writes(calls)).toHaveLength(0)
   })
 
   it('requires a reason to reset after publishing', async () => {

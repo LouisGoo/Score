@@ -73,6 +73,7 @@ def test_atomic_publication_snapshot_tasks_and_freeze(clients, event_db):
     assert "MANUAL123" not in public_record.text
     for value in result["generated_credentials"]:
         assert value["code"] not in public_record.text
+        assert owner.get(f"{url}/judges/{value['judge_id']}/credential").json() == value
     assert other.get(url + "/publication").status_code == 404
     assert owner.post(url + "/publish").status_code == 409
     assert owner.patch(url, json={"scoring_rule": None}).status_code == 409

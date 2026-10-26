@@ -53,7 +53,7 @@ export function PublishPanel({ event, onNavigate, onPublished }: Props) {
           published
             ? {
                 title: '活动已发布',
-                content: '发布已经完成，但本次自动生成的身份码明文未能取回。请在“评委与身份码”中为未拿到身份码的评委重置并分发。',
+                content: '发布已经完成，但本次自动生成的身份码明文未能取回。请在“评委与身份码”中点击“查看身份码”获取并分发。',
               }
             : published === false
               ? { title: '活动未发布', content: '服务端没有发布记录，可以核对后重新发布。' }
@@ -76,7 +76,7 @@ export function PublishPanel({ event, onNavigate, onPublished }: Props) {
         <>
           <p>发布后对象名单、评委名单、评分规则与过程规则全部冻结，不能再修改；如需调整只能复制为新活动。</p>
           {result && result.missing_credential_count > 0 && (
-            <p>将为 {result.missing_credential_count} 位未设置身份码的评委自动生成身份码，明文只显示一次，请准备好记录。</p>
+            <p>将为 {result.missing_credential_count} 位未设置身份码的评委自动生成身份码，发布后可在“评委与身份码”中随时查看和复制。</p>
           )}
         </>
       ),

@@ -204,13 +204,15 @@ const response = await fetch('/api/v1/auth/login', {
 
 ### 评委身份码（提交 06，已实现）
 
-`PUT /api/v1/events/{event_id}/judges/{judge_id}/credential`：活动拥有者的草稿操作，需要主办方 Cookie、Origin、CSRF。请求 `{}` 或 `{"code":null}` 自动生成 12 位易读随机字母数字；`{"code":" abcd1234 "}` 手动设置。手动码去首尾空白后为 8～32 位 ASCII 字母数字，至少各含一种，统一大写；编号不作为身份码。成功 200 `CredentialResult` 仅在本次返回明文及元数据，禁止缓存。普通 JudgeInfo 仅新增 credential_is_set、credential_source、credential_version、credential_updated_at；无明文、哈希或 HMAC 查询接口。
+`PUT /api/v1/events/{event_id}/judges/{judge_id}/credential`：活动拥有者的草稿操作，需要主办方 Cookie、Origin、CSRF。请求 `{}` 或 `{"code":null}` 自动生成 12 位易读随机字母数字；`{"code":" abcd1234 "}` 手动设置。手动码去首尾空白后为 8～32 位 ASCII 字母数字，至少各含一种，统一大写；编号不作为身份码。成功 200 `CredentialResult` 返回明文及元数据，禁止缓存。普通 JudgeInfo 只包含 credential_is_set、credential_source、credential_version、credential_updated_at 等元数据；身份码仅通过专用查看接口按需返回，哈希、HMAC 和密文不出现在任何业务查询响应中。
 
-服务端必须配置 `SCORE_CREDENTIAL_HMAC_KEY` 为随机 32 字节的 64 位十六进制文本，各进程使用同一密钥，独立于数据库保存和备份，不得随重启更换。可用 `python -c 'import secrets; print(secrets.token_hex(32))'` 在本机生成并写入受保护环境配置。未配置返回 503 `CREDENTIAL_KEY_UNAVAILABLE`，不使用默认密钥或降级为无密钥摘要。密钥丢失会影响已有码的查找；轮换流程留待运维批次，不可直接改密钥后继续兑换。
+`GET /api/v1/events/{event_id}/judges/{judge_id}/credential`：仅活动拥有者的有效主办方会话可查看当前身份码，所有活动状态均可查看，无需 CSRF。成功 200 `CredentialResult`，`Cache-Control: no-store`；不改变凭证/活动版本及评委会话，写入不含明文的 `credential.viewed` 审计。未设置返回 404 `CREDENTIAL_NOT_SET`；旧版本只有哈希、无法还原的身份码返回 409 `CREDENTIAL_NOT_RECORDED`，需按原有状态规则重新设置或重置一次（结束/归档仍不能重置）；密文损坏或密钥不匹配返回 503 `CREDENTIAL_UNREADABLE`。
 
-验证使用带随机盐的 scrypt，活动 ID 与规范化码的 HMAC-SHA-256 以二进制存储，并有 `(event_id, credential_lookup)` 唯一约束。慢哈希计算释放数据库连接；写入先锁活动，锁内重查草稿及重复码，与审计同事务。不同活动允许使用相同码。审计只记录凭证版本、来源、更新时间，日志与校验错误不回显码或摘要。
+服务端必须配置 `SCORE_CREDENTIAL_HMAC_KEY` 为随机 32 字节的 64 位十六进制文本，各进程使用同一密钥，独立于数据库保存和备份，不得随重启更换。可用 `python -c 'import secrets; print(secrets.token_hex(32))'` 在本机生成并写入受保护环境配置。未配置返回 503 `CREDENTIAL_KEY_UNAVAILABLE`，不使用默认密钥或降级为无密钥摘要。密钥丢失会影响已有码的查找和再次查看；轮换流程留待运维批次，不可直接改密钥后继续兑换。
 
-错误：格式不合规 422 `VALIDATION_ERROR`，重复码 409 `CREDENTIAL_CONFLICT`，非草稿 409 `EVENT_NOT_DRAFT`，无权或路径绑定错误 404；生成碰撞最多重试 5 次，耗尽 503 `CREDENTIAL_GENERATION_BUSY`（Retry-After: 1），高成本哈希繁忙 503 `AUTH_BUSY`。本操作无幂等 key，超时先查询元数据确认版本；若明文丢失只能重新设置，不可自动重复生成。发布后重置由 08 提供。
+验证使用带随机盐的 scrypt，活动 ID 与规范化码的 HMAC-SHA-256 以二进制存储，并有 `(event_id, credential_lookup)` 唯一约束。慢哈希计算释放数据库连接；写入先锁活动，锁内重查草稿及重复码，与审计同事务。不同活动允许使用相同码。新设置、重置及发布补码同时保存 AES-256-GCM 加密副本；通过 HKDF-SHA256 从现有 HMAC 密钥派生独立用途的加密密钥，每次使用随机 nonce，认证上下文绑定活动、评委及凭证版本。迁移 `0025_recoverable_credentials` 仅增加可空密文字段，不反推或改变旧凭证。审计只记录凭证版本、来源、更新时间，日志与校验错误不回显码或摘要。
+
+错误：格式不合规 422 `VALIDATION_ERROR`，重复码 409 `CREDENTIAL_CONFLICT`，非草稿 409 `EVENT_NOT_DRAFT`，无权或路径绑定错误 404；生成碰撞最多重试 5 次，耗尽 503 `CREDENTIAL_GENERATION_BUSY`（Retry-After: 1），高成本哈希繁忙 503 `AUTH_BUSY`。本操作无幂等 key，超时先查询元数据确认版本；再使用 GET credential 获取当前码，不可自动重复生成。发布后重置由 08 提供。
 
 ### 活动发布与复制（提交 07，已实现）
 
@@ -223,7 +225,7 @@ const response = await fetch('/api/v1/auth/login', {
 
 补码慢哈希在事务外准备；提交时锁活动并重新读取规则/名单/凭证。发布状态、活动码、补码、快照、任务、应交名单及审计在同一事务提交；任何失败均回滚。准备期间新增未设码评委或新码冲突返回 409 `PUBLISH_CONFLICT`，核验后可重新发布；并发发布只有一个成功，另一请求 409 `EVENT_NOT_DRAFT`。校验不合格返回 422 `PUBLISH_INVALID`，14b 起附 `error.issues`，与预检共用同一校验逻辑。活动码唯一碰撞最多重试 5 次，耗尽 503 `PUBLIC_CODE_BUSY`。权限及通用错误同草稿接口。
 
-发布后所有草稿编辑及名单增删改被拒绝；展示设置编辑仍留后续。重复发布不重新返回明文。发布超时先 GET publication；成功时即视为发布完成，若补码明文丢失只能由 08 重置后分发。复制没有幂等键，超时先核验活动列表，不能自动重复复制。所有响应禁止缓存。
+发布后所有草稿编辑及名单增删改被拒绝；展示设置编辑仍留后续。重复发布不重新返回明文。发布超时先 GET publication；成功时即视为发布完成，若补码响应丢失，可在评委列表点击“查看身份码”后分发。复制没有幂等键，超时先核验活动列表，不能自动重复复制。所有响应禁止缓存。
 
 #### 发布预检（14b 后端）
 
@@ -293,13 +295,13 @@ Cookie 分离为 `__Host-score_judge_bootstrap`（600 秒）和 `__Host-score_ju
 
 单有效会话由活动 → 评委 → 确认令牌/会话行锁及生成列 UNIQUE(active_judge_id) 共同保证。第二台设备返回 409 `JUDGE_SESSION_ACTIVE`，需主办方重置换机；原浏览器携带同一有效 Cookie 可通过新的身份确认取得原会话，期限不延长。同一浏览器已有另一评委身份返回 409 `SESSION_SWITCH_REQUIRED`，需先主动退出。过期会话在下次兑换锁内撤销后允许重建。每次鉴权检查服务端到期时间、撤销状态、凭证版本及活动状态；不依赖缓存或客户端判断。
 
-重置请求 `{"reason":"更换手机","code":"NEWCODE123"}`；省略 code 或 null 自动生成。reason 去空白后为 1～500 字。新码不能是本人当前码，也不能是同活动其他评委的码，分别返回 409 `CREDENTIAL_UNCHANGED` / `CREDENTIAL_CONFLICT`。成功时凭证版本 +1、撤销所有旧会话/未消费确认令牌、写入重置原因和版本审计、活动 version +1，在同一事务提交；评委 ID/姓名/编号、冻结规则/名单与历史归属保持不变。响应只返回当次新明文。草稿应使用 PUT credential，结束/归档不允许重置，返回 409 `RESET_NOT_ALLOWED`。
+重置请求 `{"reason":"更换手机","code":"NEWCODE123"}`；省略 code 或 null 自动生成。reason 去空白后为 1～500 字。新码不能是本人当前码，也不能是同活动其他评委的码，分别返回 409 `CREDENTIAL_UNCHANGED` / `CREDENTIAL_CONFLICT`。成功时凭证版本 +1、撤销所有旧会话/未消费确认令牌、写入重置原因和版本审计、活动 version +1，在同一事务提交；评委 ID/姓名/编号、冻结规则/名单与历史归属保持不变。响应返回新明文，之后可通过 GET credential 再次查看。草稿应使用 PUT credential，结束/归档不允许重置，返回 409 `RESET_NOT_ALLOWED`。
 
 FINISHED/ARCHIVED 的公共预览仍可读，verify 与 exchange（包括此前已获得的确认令牌）均返回 409 `EVENT_CLOSED`；已有有效会话 `/me` 返回 read_only=true。当前交付会话及本人评分回执读接口，活动成绩查询在后续实现；结束/归档操作接口属 11。WebSocket 撤销通知属 18，但 HTTP 鉴权在重置提交后立即拒绝旧会话。
 
 验证按来源（默认 600 次/300 秒，verify/exchange 共用）、活动（3000 次/300 秒）与活动内规范化码的 HMAC 摘要（10 次/300 秒）共享限流；失败和成功都计数，事务提交后才返回 429，重启/多进程不重置计数。同一会场共用 IP 不会把不同码当作同一身份；这不是容量验收结论。数据仅保存摘要、不保存尝试码或 IP 明文。scrypt 仍受每进程最多两次计算限制，503 AUTH_BUSY 按 Retry-After 等待。短期确认令牌每次成功验证最多清理 100 条已过期记录，正式会话与审计不自动删除。
 
-错误还包括 401 `CONFIRMATION_EXPIRED`（缺失/过期/已消费/重置/浏览器不匹配）、`SESSION_EXPIRED`（会话缺失或失效）、`INVALID_CREDENTIALS`（身份码无效），以及通用 Origin/CSRF/参数/数据库错误。verify/exchange/reset 均无自动幂等重试：兑换响应丢失先 GET me；若浏览器没收到 Cookie 而服务端已建会话，需主办方重置，不能抢占已有会话。重置响应丢失先查评委版本，明文无法恢复；必要时主动再次重置并分发。确认过期需重新 verify 后再次确认姓名编号。
+错误还包括 401 `CONFIRMATION_EXPIRED`（缺失/过期/已消费/重置/浏览器不匹配）、`SESSION_EXPIRED`（会话缺失或失效）、`INVALID_CREDENTIALS`（身份码无效），以及通用 Origin/CSRF/参数/数据库错误。verify/exchange/reset 均无自动幂等重试：兑换响应丢失先 GET me；若浏览器没收到 Cookie 而服务端已建会话，需主办方重置，不能抢占已有会话。重置响应丢失先查评委版本，再通过 GET credential 查看当前码并分发。确认过期需重新 verify 后再次确认姓名编号。
 
 ### 评分任务控制（提交 09，已实现）
 

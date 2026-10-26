@@ -6,6 +6,7 @@ requires-python = ">=3.10"
 dependencies = [
     "fastapi", "uvicorn", "pydantic-settings", "redis>=5,<6", "websockets>=15,<16",
     "SQLAlchemy>=2.0,<2.1", "alembic>=1.13,<2", "PyMySQL[rsa]>=1.1,<2",
+    "cryptography>=50,<51",
 ]
 
 [project.optional-dependencies]
