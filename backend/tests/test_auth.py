@@ -35,10 +35,17 @@ def test_scrypt_random_salt_and_wrong_password():
     assert not security.verify_password("x" * 129, first)
 
 
-@pytest.mark.parametrize("password", ["", "too-short", "x" * 129])
+@pytest.mark.parametrize("password", ["", "x" * 7, "x" * 129])
 def test_admin_password_policy(password):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="8～128"):
         security.hash_password(password)
+
+
+@pytest.mark.parametrize("password", ["12345678", "x" * 11, "x" * 12, "x" * 128])
+def test_admin_password_accepts_eight_to_128_characters_without_complexity_rules(password):
+    encoded = security.hash_password(password)
+    assert security.verify_password(password, encoded)
+    assert not security.verify_password(password + "!", encoded)
 
 
 def test_password_work_is_bounded():

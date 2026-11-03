@@ -76,6 +76,42 @@ def test_cli_creates_hash_and_audit_and_duplicate_is_atomic(auth_database, monke
         admin_cli.create_admin(auth_database, "ADMIN", PASSWORD)
 
 
+def test_cli_eight_character_password_can_log_in(
+    auth_database, mysql_settings, monkeypatch, capsys
+):
+    password = "abcdefgh"
+    prompts = []
+
+    def prompt(message):
+        prompts.append(message)
+        return password
+
+    monkeypatch.setattr("sys.argv", ["score_api.auth.cli", "Eight.Char"])
+    monkeypatch.setattr(admin_cli.getpass, "getpass", prompt)
+    assert admin_cli.main() == 0
+    assert prompts == ["密码（8～128 字符）：", "再次输入密码："]
+    assert password not in capsys.readouterr().out
+    config = mysql_settings.model_copy(update={"allowed_origins": [ORIGIN]})
+    with TestClient(create_app(config), base_url=ORIGIN) as client:
+        response = login(client, "eight.char", password)
+        assert response.status_code == 200
+        assert client.get("/api/v1/auth/me").json()["admin"]["login"] == "eight.char"
+    with auth_database.transaction() as session:
+        admin = session.scalar(select(Admin).where(Admin.login == "eight.char"))
+        assert admin.password_hash != password
+        assert verify_password(password, admin.password_hash)
+
+
+def test_cli_rejects_seven_characters_without_creating_account(auth_database, monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["score_api.auth.cli", "short.pass"])
+    monkeypatch.setattr(admin_cli.getpass, "getpass", lambda _: "abcdefg")
+    assert admin_cli.main() == 1
+    assert "8～128" in capsys.readouterr().out
+    with auth_database.transaction() as session:
+        assert session.scalar(select(func.count()).select_from(Admin)) == 0
+        assert session.scalar(select(func.count()).select_from(AuthAudit)) == 0
+
+
 def test_login_me_logout_and_revoked_cookie(client, auth_database, admin_id):
     response = login(client, "HOST.ADMIN")
     assert response.status_code == 200, response.text

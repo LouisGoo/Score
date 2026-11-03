@@ -119,7 +119,7 @@ curl -i http://localhost:8000/api/v1/health/ready
 {"login":"host.admin","password":"example-password-only"}
 ```
 
-账号通过服务端 `python -m score_api.auth.cli host.admin` 建立；无公开注册、重置密码或修改账号接口。账号去首尾空白后转小写，采用 3～64 位 ASCII 字母、数字、点、下划线或连字符，首位为字母或数字。CLI 新建密码为 12～128 字符，HTTP 登录允许 1～128 字符并统一校验失败。密码为 SecretStr，参数错误不回显输入。
+账号通过服务端 `python -m score_api.auth.cli host.admin` 建立；无公开注册、重置密码或修改账号接口。账号去首尾空白后转小写，采用 3～64 位 ASCII 字母、数字、点、下划线或连字符，首位为字母或数字。CLI 新建密码为 8～128 字符，无额外字符组合要求，HTTP 登录允许 1～128 字符并统一校验失败。密码为 SecretStr，参数错误不回显输入。
 
 浏览器通过同源 `/api` 访问（开发期使用 Vite 代理）：
 

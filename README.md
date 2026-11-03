@@ -135,7 +135,7 @@ Compose 仅绑定本机 3306/6379，示例密码仅供本地使用。首次初�
 ../.venv/bin/python -m score_api.auth.cli host.admin
 ```
 
-CLI 通过隐藏输入两次确认密码；密码为 12～128 个字符，不通过命令行参数传递。账号为 3～64 位 ASCII 字母、数字、点、下划线或连字符，首位为字母或数字，去除首尾空白并转为小写。重复账号被拒绝，不覆盖密码；无公开注册接口。
+CLI 通过隐藏输入两次确认密码；密码为 8～128 个字符，无额外字符组合要求，不通过命令行参数传递。账号为 3～64 位 ASCII 字母、数字、点、下划线或连字符，首位为字母或数字，去除首尾空白并转为小写。重复账号被拒绝，不覆盖密码；无公开注册接口。
 
 认证调用顺序：`GET /api/v1/auth/csrf` → 携带 Cookie、`Origin` 和 `X-CSRF-Token` 执行 `POST /api/v1/auth/login` → `GET /api/v1/auth/me` 恢复当前身份与会话 CSRF → 携带会话 CSRF 执行 `POST /api/v1/auth/logout`。详细请求示例与错误处理见 [接口文档](docs/api.md)。
 

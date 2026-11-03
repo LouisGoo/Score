@@ -41,7 +41,7 @@ def main() -> int:
         # getpass 无可用终端时默认会降级为回显输入，显式拒绝该路径。
         with warnings.catch_warnings():
             warnings.simplefilter("error", getpass.GetPassWarning)
-            password = getpass.getpass("密码（12～128 字符）：")
+            password = getpass.getpass("密码（8～128 字符）：")
             confirmed = getpass.getpass("再次输入密码：")
         if password != confirmed:
             print("两次密码不一致，未创建账号")

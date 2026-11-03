@@ -38,8 +38,8 @@ def password_digest(password: str, salt: bytes) -> bytes:
 
 
 def hash_password(password: str) -> str:
-    if not 12 <= len(password) <= 128:
-        raise ValueError("密码长度必须为 12～128 个字符")
+    if not 8 <= len(password) <= 128:
+        raise ValueError("密码长度必须为 8～128 个字符")
     return hash_secret(password)
 
 
